@@ -1,0 +1,91 @@
+---
+const { title = "XDR Pivot Map" } = Astro.props;
+---
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗺️</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script is:inline>
+      (function() {
+        var theme = localStorage.getItem('theme') || 'dark';
+        document.documentElement.dataset.theme = theme;
+      })();
+    </script>
+    <style is:global>
+      [data-theme="dark"] {
+        --bg-0: #07080f;
+        --bg-1: #0f1020;
+        --bg-2: #181a2e;
+        --bg-card: #272b48;
+        --bg-float: rgba(22, 24, 42, 0.99);
+        --bg-3: #131425;
+        --bg-4: #0f1020;
+        --bd-1: #4a4e7a;
+        --bd-2: #363a62;
+        --bd-3: #252845;
+        --tx-1: #f8f9ff;
+        --tx-2: #e4e8f8;
+        --tx-3: #c0c8e8;
+        --tx-4: #9aa4c8;
+        --tx-5: #6e78a8;
+        --tx-6: #505880;
+        --tx-7: #383e62;
+        --edge: #363a62;
+        --grid: #0e0f1e;
+        --dim-fill: #0e0f1a;
+        --dim-stroke: #363a62;
+      }
+      [data-theme="light"] {
+        --bg-0: #eef1fa;
+        --bg-1: #f8f9fe;
+        --bg-2: #ffffff;
+        --bg-card: #ffffff;
+        --bg-float: rgba(255, 255, 255, 0.98);
+        --bg-3: #f0f3fc;
+        --bg-4: #e8ecf7;
+        --bd-1: #c0c8e8;
+        --bd-2: #d0d6ee;
+        --bd-3: #dce0f2;
+        --tx-1: #04060f;
+        --tx-2: #0e1428;
+        --tx-3: #252d4a;
+        --tx-4: #3d4568;
+        --tx-5: #5a6285;
+        --tx-6: #7880a0;
+        --tx-7: #9da4c0;
+        --edge: #a8b0d0;
+        --grid: #d4d8ee;
+        --dim-fill: #dce0f0;
+        --dim-stroke: #a8b0d0;
+      }
+      *, *::before, *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease;
+      }
+      html, body {
+        height: 100%;
+        background: var(--bg-0);
+        color: var(--tx-2);
+        font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+        -webkit-font-smoothing: antialiased;
+      }
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: var(--bg-1); }
+      ::-webkit-scrollbar-thumb { background: var(--bd-1); border-radius: 3px; }
+    </style>
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>

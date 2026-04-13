@@ -1,0 +1,187 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+<BaseLayout title="XDR Pivot Map">
+  <main style="min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;padding:4rem clamp(1.5rem,6vw,8rem);max-width:860px;position:relative;">
+
+    <!-- Theme toggle -->
+    <button id="theme-toggle" style="
+      position:fixed;top:1.25rem;right:1.5rem;
+      background:var(--bg-2);border:1px solid var(--bd-1);
+      color:var(--tx-4);font-family:inherit;font-size:0.65rem;
+      letter-spacing:0.12em;text-transform:uppercase;
+      padding:0.4rem 0.8rem;border-radius:3px;cursor:pointer;
+      transition:color 0.15s,border-color 0.15s;
+    ">◐ Theme</button>
+
+    <p style="font-size:0.65rem;letter-spacing:0.25em;color:var(--tx-5);text-transform:uppercase;margin-bottom:1.5rem;">
+      XDR Pivot Map
+    </p>
+    <h1 style="font-size:clamp(1.6rem,4vw,2.8rem);font-weight:700;color:var(--tx-1);line-height:1.15;margin-bottom:1.25rem;">
+      Threat Hunting and Incident Response<br/>Reference Tools for Microsoft XDR
+    </h1>
+    <p style="font-size:0.85rem;color:var(--tx-3);line-height:1.8;max-width:520px;margin-bottom:3rem;">
+      Interactive tools for security analysts — pivot maps, schema references,<br/>
+      and investigation playbooks for Microsoft Defender XDR.
+    </p>
+
+    <div style="display:flex;flex-direction:column;gap:1px;width:100%;max-width:560px;">
+      <a href="/xdr-pivot-map/tools/investigation-roadmap" style="
+        display:flex;align-items:center;gap:1.5rem;
+        padding:1.25rem 1.5rem;
+        background:var(--bg-card);
+        border:1px solid var(--bd-1);
+        border-left:4px solid #47ff8f;
+        box-shadow:0 4px 24px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.06);
+        color:inherit;text-decoration:none;
+        transition:filter 0.15s,border-left-color 0.15s,box-shadow 0.15s;
+      "
+      onmouseover="this.style.filter='brightness(1.15)';this.style.borderLeftColor='#ffb347';this.style.boxShadow='0 6px 32px rgba(71,255,143,0.18),inset 0 1px 0 rgba(255,255,255,0.08)'"
+      onmouseout="this.style.filter='';this.style.borderLeftColor='#47ff8f';this.style.boxShadow='0 4px 24px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.06)'"
+      >
+        <div style="font-size:1.5rem;flex-shrink:0;">🗺️</div>
+        <div>
+          <div style="font-size:0.8rem;font-weight:700;color:var(--tx-1);margin-bottom:0.3rem;letter-spacing:0.04em;">
+            Roadmap Through the Data
+          </div>
+          <div style="font-size:0.7rem;color:var(--tx-3);line-height:1.6;">
+            Ordered investigation paths for Email, Device, Identity, Malware, and IP pivots.
+            Each stop shows what to look for, pivot columns, and KQL queries.
+          </div>
+          <div style="margin-top:0.6rem;font-size:0.65rem;color:var(--tx-5);letter-spacing:0.1em;text-transform:uppercase;">
+            5 pivots &nbsp;·&nbsp; 35+ stops &nbsp;·&nbsp; KQL ready
+          </div>
+        </div>
+      </a>
+      <a href="/xdr-pivot-map/tools/tables-for-muggles" style="
+        display:flex;align-items:center;gap:1.5rem;
+        padding:1.25rem 1.5rem;
+        background:var(--bg-card);
+        border:1px solid var(--bd-1);
+        border-left:4px solid #a78bfa;
+        box-shadow:0 4px 24px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.06);
+        color:inherit;text-decoration:none;
+        transition:filter 0.15s,border-left-color 0.15s,box-shadow 0.15s;
+      "
+      onmouseover="this.style.filter='brightness(1.15)';this.style.borderLeftColor='#ffb347';this.style.boxShadow='0 6px 32px rgba(167,139,250,0.18),inset 0 1px 0 rgba(255,255,255,0.08)'"
+      onmouseout="this.style.filter='';this.style.borderLeftColor='#a78bfa';this.style.boxShadow='0 4px 24px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.06)'"
+      >
+        <div style="font-size:1.5rem;flex-shrink:0;">📚</div>
+        <div>
+          <div style="font-size:0.8rem;font-weight:700;color:var(--tx-1);margin-bottom:0.3rem;letter-spacing:0.04em;">
+            Tables for Muggles
+          </div>
+          <div style="font-size:0.7rem;color:var(--tx-3);line-height:1.6;">
+            Plain-English guide to every Defender XDR table — where the data comes from,
+            what it means, and the columns that matter most for IR and threat hunting.
+          </div>
+          <div style="margin-top:0.6rem;font-size:0.65rem;color:var(--tx-5);letter-spacing:0.1em;text-transform:uppercase;">
+            34 tables &nbsp;·&nbsp; 7 topic filters &nbsp;·&nbsp; key columns
+          </div>
+        </div>
+      </a>
+      <a href="/xdr-pivot-map/tools/mitre-crosswalk" style="
+        display:flex;align-items:center;gap:1.5rem;
+        padding:1.25rem 1.5rem;
+        background:var(--bg-card);
+        border:1px solid var(--bd-1);
+        border-left:4px solid #ff4757;
+        box-shadow:0 4px 24px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.06);
+        color:inherit;text-decoration:none;
+        transition:filter 0.15s,border-left-color 0.15s,box-shadow 0.15s;
+      "
+      onmouseover="this.style.filter='brightness(1.15)';this.style.borderLeftColor='#ffb347';this.style.boxShadow='0 6px 32px rgba(255,71,87,0.18),inset 0 1px 0 rgba(255,255,255,0.08)'"
+      onmouseout="this.style.filter='';this.style.borderLeftColor='#ff4757';this.style.boxShadow='0 4px 24px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.06)'"
+      >
+        <div style="font-size:1.5rem;flex-shrink:0;">🛡️</div>
+        <div>
+          <div style="font-size:0.8rem;font-weight:700;color:var(--tx-1);margin-bottom:0.3rem;letter-spacing:0.04em;">
+            MITRE ATT&amp;CK &times; Defender XDR Crosswalk
+          </div>
+          <div style="font-size:0.7rem;color:var(--tx-3);line-height:1.6;">
+            Browse Enterprise tactics and techniques mapped to Defender XDR tables,
+            key columns, and ready-to-run KQL hunting queries.
+          </div>
+          <div style="margin-top:0.6rem;font-size:0.65rem;color:var(--tx-5);letter-spacing:0.1em;text-transform:uppercase;">
+            14 tactics &nbsp;·&nbsp; 40+ techniques &nbsp;·&nbsp; KQL ready
+          </div>
+        </div>
+      </a>
+      <a href="/xdr-pivot-map/tools/xdr-pivot" style="
+        display:flex;align-items:center;gap:1.5rem;
+        padding:1.25rem 1.5rem;
+        background:var(--bg-card);
+        border:1px solid var(--bd-1);
+        border-left:4px solid #00d4ff;
+        box-shadow:0 4px 24px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.06);
+        color:inherit;text-decoration:none;
+        transition:filter 0.15s,border-left-color 0.15s,box-shadow 0.15s;
+      "
+      onmouseover="this.style.filter='brightness(1.15)';this.style.borderLeftColor='#ffb347';this.style.boxShadow='0 6px 32px rgba(0,212,255,0.18),inset 0 1px 0 rgba(255,255,255,0.08)'"
+      onmouseout="this.style.filter='';this.style.borderLeftColor='#00d4ff';this.style.boxShadow='0 4px 24px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.06)'"
+      >
+        <div style="font-size:1.5rem;flex-shrink:0;">🕸️</div>
+        <div>
+          <div style="font-size:0.8rem;font-weight:700;color:var(--tx-1);margin-bottom:0.3rem;letter-spacing:0.04em;">
+            XDR Advanced Hunting Pivot Map
+          </div>
+          <div style="font-size:0.7rem;color:var(--tx-3);line-height:1.6;">
+            Force-directed graph of Defender XDR table relationships.
+            Hunt by scenario — phishing, lateral movement, credential access, and more.
+          </div>
+          <div style="margin-top:0.6rem;font-size:0.65rem;color:var(--tx-5);letter-spacing:0.1em;text-transform:uppercase;">
+            34 tables &nbsp;·&nbsp; 9 use cases &nbsp;·&nbsp; D3 force graph
+          </div>
+        </div>
+      </a>
+      <a href="/xdr-pivot-map/tools/canvas-export" style="
+        display:flex;align-items:center;gap:1.5rem;
+        padding:1.25rem 1.5rem;
+        background:var(--bg-card);
+        border:1px solid var(--bd-1);
+        border-left:4px solid #ffd700;
+        box-shadow:0 4px 24px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.06);
+        color:inherit;text-decoration:none;
+        transition:filter 0.15s,border-left-color 0.15s,box-shadow 0.15s;
+      "
+      onmouseover="this.style.filter='brightness(1.15)';this.style.borderLeftColor='#ffb347';this.style.boxShadow='0 6px 32px rgba(255,215,0,0.18),inset 0 1px 0 rgba(255,255,255,0.08)'"
+      onmouseout="this.style.filter='';this.style.borderLeftColor='#ffd700';this.style.boxShadow='0 4px 24px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.06)'"
+      >
+        <div style="font-size:1.5rem;flex-shrink:0;">📥</div>
+        <div>
+          <div style="font-size:0.8rem;font-weight:700;color:var(--tx-1);margin-bottom:0.3rem;letter-spacing:0.04em;">
+            Obsidian Canvas Export
+          </div>
+          <div style="font-size:0.7rem;color:var(--tx-3);line-height:1.6;">
+            Download the pivot map and investigation roadmaps as Obsidian Canvas files.
+            Explore, annotate, and extend offline inside your vault.
+          </div>
+          <div style="margin-top:0.6rem;font-size:0.65rem;color:var(--tx-5);letter-spacing:0.1em;text-transform:uppercase;">
+            6 canvas files &nbsp;·&nbsp; Obsidian ≥ 1.1 &nbsp;·&nbsp; offline ready
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <p style="margin-top:1.5rem;font-size:0.65rem;color:var(--tx-6);letter-spacing:0.08em;font-family:'JetBrains Mono','Fira Code','Courier New',monospace;">
+      v0.4
+    </p>
+  </main>
+
+  <script is:inline>
+    (function() {
+      var btn = document.getElementById('theme-toggle');
+      function updateLabel() {
+        var t = document.documentElement.dataset.theme || 'dark';
+        btn.textContent = t === 'dark' ? '☀ Light' : '◐ Dark';
+      }
+      updateLabel();
+      btn.addEventListener('click', function() {
+        var next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+        document.documentElement.dataset.theme = next;
+        localStorage.setItem('theme', next);
+        updateLabel();
+      });
+    })();
+  </script>
+</BaseLayout>
