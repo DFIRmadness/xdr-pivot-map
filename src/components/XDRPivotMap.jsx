@@ -13,6 +13,7 @@ export default function XDRPivotMap() {
   const [dimensions, setDimensions] = useState({ w: 900, h: 600 });
   const [activeStep, setActiveStep] = useState(null);
   const [isDark, setIsDark] = useState(true);
+  const [viewMode, setViewMode] = useState("graph");
 
   const activeUC = USE_CASES.find(u => u.id === selectedUseCase) ?? null;
   const activeTableIds = activeUC
@@ -50,6 +51,7 @@ export default function XDRPivotMap() {
   function handleSelectUseCase(id) {
     setSelectedUseCase(id);
     setActiveStep(null);
+    setViewMode("graph");
   }
 
   return (
@@ -91,6 +93,8 @@ export default function XDRPivotMap() {
           onNodeHover={setHoveredNode}
           onEdgeHover={setHoveredEdge}
           isDark={isDark}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
         />
 
         <StepPanel

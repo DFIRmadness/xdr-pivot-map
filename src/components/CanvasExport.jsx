@@ -1,20 +1,29 @@
 import { useState } from "react";
 import { TABLES } from "../data/tables.js";
 import { DOMAINS } from "../data/domains.js";
-import { ALL_EDGES } from "../data/useCases.js";
+import { ALL_EDGES, USE_CASES } from "../data/useCases.js";
 import { ROADMAPS, ROADMAP_TYPES } from "../data/roadmaps.js";
+import { TACTICS, TECHNIQUES } from "../data/mitreAttack.js";
 
 // ── Layout constants ──────────────────────────────────────────────────────────
-const PM_NODE_W  = 260;
-const PM_NODE_H  = 80;
-const PM_V_GAP   = 14;
-const PM_COL_W   = 340;   // column width including horizontal gap
-const PM_ROW_GAP = 220;   // vertical gap between domain rows
+const PM_NODE_W  = 340;   // wide enough for longest table names
+const PM_NODE_H  = 110;   // tall enough for 2-line content
+const PM_V_GAP   = 28;    // breathing room between nodes
+const PM_COL_W   = 460;   // column width including horizontal gap
+const PM_ROW_GAP = 320;   // vertical gap between domain rows
 
-const RM_NODE_W   = 460;
-const RM_HEADER_H = 110;
-const RM_STOP_H   = 270;
-const RM_V_GAP    = 50;
+const RM_NODE_W   = 560;   // wider for verbose goal text
+const RM_HEADER_H = 140;   // taller header for long descriptions
+const RM_STOP_H   = 360;   // tall enough for multi-sentence goals + pivot cols
+const RM_V_GAP    = 60;
+
+const MIT_COL_W      = 440;  // column pitch — wide enough for long technique names
+const MIT_NODE_W     = 400;  // technique node width
+const MIT_NODE_H     = 80;   // compact height: ID line + table line
+const MIT_V_GAP      = 12;   // tight but distinct gap
+const MIT_TACTIC_H   = 60;   // tactic header height
+const MIT_TACTIC_GAP = 16;   // gap between tactic header and first technique
+const MIT_ROW_GAP    = 280;  // vertical gap between tactic rows
 
 // ── Domain column/row layout for Pivot Map canvas ────────────────────────────
 const DOMAIN_POS = {
@@ -58,15 +67,15 @@ function generatePivotMapCanvas() {
     const yBase = pos.row === 0 ? 0 : row1Y;
     const color = DOMAINS[domain].color;
 
-    // Domain header pseudo-node (small label above the column)
+    // Domain header pseudo-node (label above the column)
     nodes.push({
       id: `domain-label-${domain}`,
       type: "text",
       text: `**${DOMAINS[domain].label}**`,
       x,
-      y: yBase - 44,
+      y: yBase - 58,
       width: PM_NODE_W,
-      height: 36,
+      height: 42,
       color,
     });
 
@@ -162,6 +171,64 @@ function generateRoadmapCanvas(typeId) {
   });
 
   return { nodes, edges };
+}
+
+function generateMitreCanvas() {
+  const nodes = [];
+
+  // Index techniques by primary tactic (tacticIds[0])
+  const byTactic = {};
+  TACTICS.forEach(t => { byTactic[t.id] = []; });
+  TECHNIQUES.forEach(tech => {
+    const primary = tech.tacticIds[0];
+    if (byTactic[primary]) byTactic[primary].push(tech);
+  });
+
+  // 14 tactics → 2 rows of 7
+  const row1 = TACTICS.slice(0, 7);
+  const row2 = TACTICS.slice(7);
+
+  const row1Max  = Math.max(...row1.map(t => (byTactic[t.id] || []).length));
+  const row1H    = MIT_TACTIC_H + MIT_TACTIC_GAP + row1Max * (MIT_NODE_H + MIT_V_GAP);
+  const row2YBase = row1H + MIT_ROW_GAP;
+
+  [row1, row2].forEach((row, rowIdx) => {
+    const yBase = rowIdx === 0 ? 0 : row2YBase;
+
+    row.forEach((tactic, colIdx) => {
+      const x         = colIdx * MIT_COL_W;
+      const techniques = byTactic[tactic.id] || [];
+
+      // Tactic header
+      nodes.push({
+        id:     `tactic-${tactic.id}`,
+        type:   "text",
+        text:   `## ${tactic.icon} ${tactic.name}`,
+        x,
+        y:      yBase,
+        width:  MIT_NODE_W,
+        height: MIT_TACTIC_H,
+        color:  tactic.color,
+      });
+
+      // Technique nodes
+      techniques.forEach((tech, i) => {
+        const tables = [...new Set(tech.xdrMappings.map(m => m.table))].join("  ·  ");
+        nodes.push({
+          id:     `tech-${tech.id}`,
+          type:   "text",
+          text:   `**${tech.id}** — ${tech.name}\n\`${tables}\``,
+          x,
+          y:      yBase + MIT_TACTIC_H + MIT_TACTIC_GAP + i * (MIT_NODE_H + MIT_V_GAP),
+          width:  MIT_NODE_W,
+          height: MIT_NODE_H,
+          color:  tactic.color,
+        });
+      });
+    });
+  });
+
+  return { nodes, edges: [] };
 }
 
 // ── Download helper ───────────────────────────────────────────────────────────
@@ -325,10 +392,31 @@ export default function CanvasExport() {
             <DownloadCard
               icon="🕸️"
               title="XDR Advanced Hunting Pivot Map"
-              subtitle="All 34 Defender XDR tables as nodes. Every cross-table pivot relationship from the 9 use cases drawn as labeled edges."
+              subtitle={`All ${TABLES.length} Defender XDR tables as nodes, grouped by domain. Every cross-table pivot relationship from the ${USE_CASES.length} use cases drawn as labeled edges.`}
               filename="xdr-pivot-map.canvas"
               accentColor="#00d4ff"
               generate={generatePivotMapCanvas}
+            />
+          </div>
+        </div>
+
+        {/* MITRE ATT&CK section */}
+        <div style={{ marginBottom: "2.5rem" }}>
+          <div style={{
+            fontSize: "0.65rem", letterSpacing: "0.2em", color: "var(--tx-5)",
+            textTransform: "uppercase", marginBottom: "0.75rem",
+            paddingBottom: "0.5rem", borderBottom: "1px solid var(--bd-2)",
+          }}>
+            MITRE ATT&CK Crosswalk
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            <DownloadCard
+              icon="🎯"
+              title="MITRE ATT&CK × Defender XDR"
+              subtitle={`${TECHNIQUES.length} techniques across ${TACTICS.length} tactics, each node showing the XDR tables that cover it. Arranged in two rows of 7 tactics — colour-coded by tactic.`}
+              filename="mitre-attack-crosswalk.canvas"
+              accentColor="#ff4757"
+              generate={generateMitreCanvas}
             />
           </div>
         </div>

@@ -15,6 +15,8 @@ export default function PivotGraph({
   onEdgeHover,
   svgRef,
   isDark,
+  viewMode,
+  onViewModeChange,
 }) {
   const simRef     = useRef(null);
   const zoomRef    = useRef(null);
@@ -26,7 +28,6 @@ export default function PivotGraph({
   const nodesRef   = useRef([]);   // live node objects with x/y/fx/fy
   const lockedRef  = useRef(false);
   const [isLocked, setIsLocked] = useState(false);
-  const [viewMode, setViewMode] = useState("graph"); // "graph" | "diagram"
 
   // ── Simulation + zoom + drag ──────────────────────────────────────────────
   useEffect(() => {
@@ -318,11 +319,11 @@ export default function PivotGraph({
       }}>
         {/* View toggle — always visible */}
         <button style={tabStyle("graph")}
-          onClick={() => setViewMode("graph")}
+          onClick={() => onViewModeChange("graph")}
           title="Force-directed graph"
         >◈ Graph</button>
         <button style={tabStyle("diagram")}
-          onClick={() => { if (activeUC) setViewMode("diagram"); }}
+          onClick={() => { if (activeUC) onViewModeChange("diagram"); }}
           title={activeUC ? "Flow diagram (Mermaid)" : "Select a use case first"}
         >⊡ Diagram</button>
 
