@@ -663,7 +663,7 @@ export const TECHNIQUES = [
         columns: ["DeviceName", "AccountName", "AccountDomain", "LogonType", "RemoteDeviceName", "RemoteIP"],
         kql: `DeviceLogonEvents
 | where Timestamp > ago(1d)
-| where LogonType == "RemoteInteractive"
+| where LogonType == 10                   // RemoteInteractive (RDP)
 | where not(AccountDomain =~ DeviceName)
 | project Timestamp, DeviceName, AccountName, AccountDomain, RemoteDeviceName, RemoteIP`,
       },
@@ -690,7 +690,7 @@ export const TECHNIQUES = [
         kql: `DeviceLogonEvents
 | where Timestamp > ago(1d)
 | where ActionType == "LogonSuccess"
-| where LogonType == "Network"
+| where LogonType == 3                    // Network (Pass-the-Hash)
 | where not(AccountName endswith "$")
 | summarize Targets = dcount(DeviceName), Hops = make_set(DeviceName) by AccountName, RemoteIP
 | where Targets > 3

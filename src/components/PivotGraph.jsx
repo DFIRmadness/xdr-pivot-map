@@ -3,6 +3,7 @@ import * as d3 from "d3";
 import { DOMAINS } from "../data/domains.js";
 import { TABLES } from "../data/tables.js";
 import { ALL_EDGES } from "../data/useCases.js";
+import MermaidDiagram from "./MermaidDiagram.jsx";
 
 export default function PivotGraph({
   activeUC,
@@ -25,6 +26,7 @@ export default function PivotGraph({
   const nodesRef   = useRef([]);   // live node objects with x/y/fx/fy
   const lockedRef  = useRef(false);
   const [isLocked, setIsLocked] = useState(false);
+  const [viewMode, setViewMode] = useState("graph"); // "graph" | "diagram"
 
   // ── Simulation + zoom + drag ──────────────────────────────────────────────
   useEffect(() => {
@@ -195,10 +197,27 @@ export default function PivotGraph({
     transition: "background 0.15s, color 0.15s",
   };
 
+  // ── View toggle ───────────────────────────────────────────────────────────
+  const tabStyle = (mode) => ({
+    ...btnStyle,
+    width: "auto",
+    padding: "0 10px",
+    fontSize: 11,
+    letterSpacing: "0.06em",
+    background: viewMode === mode ? "var(--bg-3)" : "var(--bg-2)",
+    color:      viewMode === mode ? "var(--tx-1)" : "var(--tx-4)",
+    border:     viewMode === mode ? "1px solid var(--bd-2)" : "1px solid var(--bd-1)",
+    fontWeight: viewMode === mode ? "700" : "400",
+    opacity:    mode === "diagram" && !activeUC ? 0.35 : 1,
+    cursor:     mode === "diagram" && !activeUC ? "not-allowed" : "pointer",
+  });
+
   return (
     <>
+      {/* D3 SVG — kept mounted so the simulation survives view toggles */}
       <svg ref={svgRef} width={dimensions.w} height={dimensions.h}
-        style={{ position: "absolute", inset: 0, cursor: "grab" }}
+        style={{ position: "absolute", inset: 0, cursor: "grab",
+                 display: viewMode === "graph" ? undefined : "none" }}
       >
         <defs>
           <filter id="glow">
@@ -287,38 +306,57 @@ export default function PivotGraph({
         </g>
       </svg>
 
-      {/* Zoom controls */}
+      {/* Mermaid diagram layer */}
+      {viewMode === "diagram" && (
+        <MermaidDiagram activeUC={activeUC} isDark={isDark} />
+      )}
+
+      {/* Controls bar */}
       <div style={{
         position: "absolute", bottom: 20, left: "50%", transform: "translateX(-50%)",
         display: "flex", gap: 4, zIndex: 10,
       }}>
-        <button style={btnStyle} onClick={zoomIn}
-          onMouseEnter={e => { e.currentTarget.style.background = "var(--bg-3)"; e.currentTarget.style.color = "var(--tx-1)"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "var(--bg-2)"; e.currentTarget.style.color = "var(--tx-3)"; }}
-          title="Zoom in"
-        >+</button>
-        <button style={btnStyle} onClick={zoomReset}
-          onMouseEnter={e => { e.currentTarget.style.background = "var(--bg-3)"; e.currentTarget.style.color = "var(--tx-1)"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "var(--bg-2)"; e.currentTarget.style.color = "var(--tx-3)"; }}
-          title="Reset zoom"
-        >⌂</button>
-        <button style={btnStyle} onClick={zoomOut}
-          onMouseEnter={e => { e.currentTarget.style.background = "var(--bg-3)"; e.currentTarget.style.color = "var(--tx-1)"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "var(--bg-2)"; e.currentTarget.style.color = "var(--tx-3)"; }}
-          title="Zoom out"
-        >−</button>
-        <button
-          style={{
-            ...btnStyle,
-            marginLeft: 8,
-            background: isLocked ? "#00d4ff22" : "var(--bg-2)",
-            border: isLocked ? "1px solid #00d4ff66" : "1px solid var(--bd-1)",
-            color: isLocked ? "#00d4ff" : "var(--tx-3)",
-            fontSize: 14,
-          }}
-          onClick={toggleLock}
-          title={isLocked ? "Unlock nodes" : "Lock nodes in place"}
-        >{isLocked ? "🔒" : "🔓"}</button>
+        {/* View toggle — always visible */}
+        <button style={tabStyle("graph")}
+          onClick={() => setViewMode("graph")}
+          title="Force-directed graph"
+        >◈ Graph</button>
+        <button style={tabStyle("diagram")}
+          onClick={() => { if (activeUC) setViewMode("diagram"); }}
+          title={activeUC ? "Flow diagram (Mermaid)" : "Select a use case first"}
+        >⊡ Diagram</button>
+
+        {/* Zoom + lock — only relevant in graph mode */}
+        {viewMode === "graph" && (<>
+          <div style={{ width: 1, background: "var(--bd-1)", margin: "4px 4px" }} />
+          <button style={btnStyle} onClick={zoomIn}
+            onMouseEnter={e => { e.currentTarget.style.background = "var(--bg-3)"; e.currentTarget.style.color = "var(--tx-1)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "var(--bg-2)"; e.currentTarget.style.color = "var(--tx-3)"; }}
+            title="Zoom in"
+          >+</button>
+          <button style={btnStyle} onClick={zoomReset}
+            onMouseEnter={e => { e.currentTarget.style.background = "var(--bg-3)"; e.currentTarget.style.color = "var(--tx-1)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "var(--bg-2)"; e.currentTarget.style.color = "var(--tx-3)"; }}
+            title="Reset zoom"
+          >⌂</button>
+          <button style={btnStyle} onClick={zoomOut}
+            onMouseEnter={e => { e.currentTarget.style.background = "var(--bg-3)"; e.currentTarget.style.color = "var(--tx-1)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "var(--bg-2)"; e.currentTarget.style.color = "var(--tx-3)"; }}
+            title="Zoom out"
+          >−</button>
+          <button
+            style={{
+              ...btnStyle,
+              marginLeft: 4,
+              background: isLocked ? "#00d4ff22" : "var(--bg-2)",
+              border: isLocked ? "1px solid #00d4ff66" : "1px solid var(--bd-1)",
+              color: isLocked ? "#00d4ff" : "var(--tx-3)",
+              fontSize: 14,
+            }}
+            onClick={toggleLock}
+            title={isLocked ? "Unlock nodes" : "Lock nodes in place"}
+          >{isLocked ? "🔒" : "🔓"}</button>
+        </>)}
       </div>
     </>
   );
