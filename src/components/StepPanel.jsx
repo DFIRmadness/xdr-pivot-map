@@ -3,6 +3,11 @@ import { DOMAINS } from "../data/domains.js";
 import { TABLES } from "../data/tables.js";
 import { COLUMN_INFO } from "../data/columns.js";
 
+function tableDeprecation(tableId) {
+  const t = TABLES.find(t => t.id === tableId);
+  return t?.deprecated ? { replacedBy: t.replacedBy } : null;
+}
+
 export default function StepPanel({ activeUC, activeStep, onStepClick }) {
   const [expandedKql, setExpandedKql] = useState(null);
   const [expandedCol, setExpandedCol] = useState(null); // "stepIndex:colKey"
@@ -61,6 +66,7 @@ export default function StepPanel({ activeUC, activeStep, onStepClick }) {
           const col = table ? DOMAINS[table.domain].color : "#fff";
           const isActive = activeStep === i;
           const kqlOpen = expandedKql === i;
+          const dep = tableDeprecation(step.table);
 
           const outgoing = activeUC.links.filter(l => l.from === step.table);
           const incoming = activeUC.links.filter(l => l.to === step.table);
@@ -89,8 +95,19 @@ export default function StepPanel({ activeUC, activeStep, onStepClick }) {
                   {String(i + 1).padStart(2, "0")}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: isActive ? col : col + "99", marginBottom: 5 }}>
-                    {step.table}
+                  <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", marginBottom: 5 }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: dep ? "#f59e0b" : (isActive ? col : col + "99") }}>
+                      {step.table}
+                    </span>
+                    {dep && (
+                      <span style={{
+                        fontSize: 10, padding: "1px 5px", borderRadius: 2,
+                        background: "#f59e0b18", border: "1px solid #f59e0b55",
+                        color: "#f59e0b", letterSpacing: "0.04em", whiteSpace: "nowrap",
+                      }}>
+                        DEPRECATED → {dep.replacedBy}
+                      </span>
+                    )}
                   </div>
                   <div style={{ fontSize: 12, color: "var(--tx-4)", lineHeight: 1.6 }}>{step.action}</div>
 

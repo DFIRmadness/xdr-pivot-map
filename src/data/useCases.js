@@ -190,9 +190,9 @@ export const USE_CASES = [
 // through a proxy to the real Microsoft login page`,
       },
       {
-        table: "AADSignInEventsBeta",
+        table: "EntraIdSignInEvents",
         action: "Spot the attacker's sign-in with the stolen session token — different IP/ASN from the victim's normal pattern, same account, no MFA challenge (token already has MFA claim)",
-        kql: `AADSignInEventsBeta
+        kql: `EntraIdSignInEvents
 | where Timestamp > ago(7d)
 | where AccountUpn =~ "<AccountUpn from UrlClickEvents>"
 // Victim's normal IP vs attacker's IP — look for the second sign-in
@@ -203,7 +203,7 @@ export const USE_CASES = [
 | where array_length(IPs) > 1          // Multiple source IPs in short window
 ---
 // Drill into the suspicious sign-in
-AADSignInEventsBeta
+EntraIdSignInEvents
 | where Timestamp > ago(7d)
 | where AccountUpn =~ "<AccountUpn>"
 | where IsManaged == false             // Unmanaged / unknown device
@@ -217,7 +217,7 @@ AADSignInEventsBeta
         action: "Attacker is now in the Azure Portal — look for immediate resource browsing: subscription listing, VM enumeration, IAM inspection",
         kql: `CloudAppEvents
 | where Timestamp > ago(7d)
-| where AccountObjectId == "<AccountObjectId from AADSignInEventsBeta>"
+| where AccountObjectId == "<AccountObjectId from EntraIdSignInEvents>"
 | where Application == "Microsoft Azure"
 | where ActionType in (
     "ListVirtualMachines",
@@ -302,7 +302,7 @@ AADSignInEventsBeta
         kql: `AlertEvidence
 | where Timestamp > ago(7d)
 | where AlertId == "<AlertId from AlertInfo>"
-// EntityType "User" → AccountUpn pivots to AADSignInEventsBeta to find the session
+// EntityType "User" → AccountUpn pivots to EntraIdSignInEvents to find the session
 // EntityType "Ip"   → IPAddress to identify attacker source vs. victim source
 | where EntityType in ("User","Ip","Machine")
 | project Timestamp, AlertId, EntityType, EvidenceRole,
@@ -311,13 +311,13 @@ AADSignInEventsBeta
     ],
     links: [
       { from: "EmailEvents",       to: "UrlClickEvents",       col: "NetworkMessageId" },
-      { from: "UrlClickEvents",    to: "AADSignInEventsBeta",  col: "AccountUpn" },
-      { from: "AADSignInEventsBeta", to: "CloudAppEvents",     col: "AccountObjectId" },
+      { from: "UrlClickEvents",    to: "EntraIdSignInEvents",  col: "AccountUpn" },
+      { from: "EntraIdSignInEvents", to: "CloudAppEvents",     col: "AccountObjectId" },
       { from: "CloudAppEvents",    to: "GraphApiAuditEvents",  col: "AccountId" },
       { from: "CloudAppEvents",    to: "CloudAuditEvents",     col: "AccountUpn" },
       { from: "CloudAuditEvents",  to: "CloudProcessEvents",   col: "ResourceName → DeviceName" },
       { from: "AlertInfo",         to: "AlertEvidence",        col: "AlertId" },
-      { from: "AlertEvidence",     to: "AADSignInEventsBeta",  col: "AccountUpn" },
+      { from: "AlertEvidence",     to: "EntraIdSignInEvents",  col: "AccountUpn" },
     ],
   },
   {
@@ -689,9 +689,9 @@ AADSignInEventsBeta
 // High-volume repeated queries to the same QueryTarget = automated enumeration`,
       },
       {
-        table: "AADSignInEventsBeta",
+        table: "EntraIdSignInEvents",
         action: "Detect spray attacks: many failed sign-ins across accounts, same IP",
-        kql: `AADSignInEventsBeta
+        kql: `EntraIdSignInEvents
 | where Timestamp > ago(1d)
 | where ErrorCode != 0                // Failed sign-ins only
 | summarize FailedCount = count(),
@@ -706,7 +706,7 @@ AADSignInEventsBeta
         action: "Correlate with successful auth immediately after failures (spray success)",
         kql: `IdentityLogonEvents
 | where Timestamp > ago(1d)
-| where AccountUpn in ("<accounts from AADSignInEventsBeta>")
+| where AccountUpn in ("<accounts from EntraIdSignInEvents>")
 | where ActionType == "LogonSuccess"
 | project Timestamp, AccountUpn, IPAddress,
           DeviceName, LogonType, Protocol`,
@@ -755,7 +755,7 @@ AADSignInEventsBeta
       { from: "DeviceProcessEvents", to: "DeviceFileEvents",        col: "InitiatingProcessId" },
       { from: "IdentityLogonEvents", to: "IdentityDirectoryEvents", col: "AccountUpn" },
       { from: "IdentityDirectoryEvents", to: "IdentityQueryEvents", col: "AccountUpn" },
-      { from: "AADSignInEventsBeta", to: "IdentityLogonEvents",     col: "IPAddress + AccountUpn" },
+      { from: "EntraIdSignInEvents", to: "IdentityLogonEvents",     col: "IPAddress + AccountUpn" },
       { from: "IdentityLogonEvents",  to: "DeviceLogonEvents",       col: "AccountUpn" },
       { from: "DeviceLogonEvents",    to: "DeviceProcessEvents",     col: "DeviceId" },
       { from: "DeviceLogonEvents",    to: "DeviceEvents",            col: "DeviceId" },
@@ -772,9 +772,9 @@ AADSignInEventsBeta
     desc: "Trace token theft, OAuth abuse, and cloud-native data access post-compromise.",
     steps: [
       {
-        table: "AADSignInEventsBeta",
+        table: "EntraIdSignInEvents",
         action: "Identify sign-in from impossible travel, new ASN, or legacy protocol",
-        kql: `AADSignInEventsBeta
+        kql: `EntraIdSignInEvents
 | where Timestamp > ago(7d)
 | where AccountUpn =~ "<target UPN>"
 | where RiskLevelDuringSignIn in ("high","medium")
@@ -789,7 +789,7 @@ AADSignInEventsBeta
         action: "Look for mass download, mail forwarding rules, or admin actions",
         kql: `CloudAppEvents
 | where Timestamp > ago(7d)
-| where AccountObjectId == "<AccountObjectId from AADSignInEventsBeta>"
+| where AccountObjectId == "<AccountObjectId from EntraIdSignInEvents>"
 | where ActionType in (
     "FileDownloaded","FileSyncDownloadedFull",
     "Set-Mailbox","New-InboxRule",
@@ -816,7 +816,7 @@ AADSignInEventsBeta
         action: "Check for MFA modification or self-service password reset abuse",
         kql: `IdentityDirectoryEvents
 | where Timestamp > ago(7d)
-| where AccountUpn =~ "<AccountUpn from AADSignInEventsBeta>"
+| where AccountUpn =~ "<AccountUpn from EntraIdSignInEvents>"
 | where ActionType in (
     "User registered for MFA",
     "MFA registration details modified",
@@ -885,7 +885,7 @@ AADSignInEventsBeta
         kql: `AlertEvidence
 | where Timestamp > ago(7d)
 | where AlertId == "<AlertId from AlertInfo>"
-// EntityType "User"             → AccountUpn to pivot to AADSignInEventsBeta
+// EntityType "User"             → AccountUpn to pivot to EntraIdSignInEvents
 // EntityType "Ip"               → IPAddress of the attacker's sign-in source
 // EntityType "CloudApplication" → shows which app the attacker abused
 | where EntityType in ("User","Ip","CloudApplication")
@@ -894,15 +894,15 @@ AADSignInEventsBeta
       },
     ],
     links: [
-      { from: "AADSignInEventsBeta",     to: "CloudAppEvents",         col: "AccountObjectId" },
+      { from: "EntraIdSignInEvents",     to: "CloudAppEvents",         col: "AccountObjectId" },
       { from: "CloudAppEvents",          to: "GraphApiAuditEvents",    col: "AccountId" },
-      { from: "AADSignInEventsBeta",     to: "IdentityDirectoryEvents",col: "AccountUpn" },
+      { from: "EntraIdSignInEvents",     to: "IdentityDirectoryEvents",col: "AccountUpn" },
       { from: "IdentityDirectoryEvents", to: "IdentityInfo",           col: "AccountUpn" },
       { from: "IdentityInfo",           to: "IdentityAccountInfo",    col: "AccountUpn" },
       { from: "CloudAppEvents",          to: "CloudAuditEvents",       col: "AccountUpn" },
       { from: "CloudAppEvents",          to: "DataSecurityEvents",     col: "AccountUpn" },
       { from: "AlertInfo",               to: "AlertEvidence",          col: "AlertId" },
-      { from: "AlertEvidence",           to: "AADSignInEventsBeta",    col: "AccountUpn" },
+      { from: "AlertEvidence",           to: "EntraIdSignInEvents",    col: "AccountUpn" },
     ],
   },
   {
@@ -1214,9 +1214,9 @@ AADSignInEventsBeta
           DeviceName, LogonType, Protocol, Hour`,
       },
       {
-        table: "AADSignInEventsBeta",
+        table: "EntraIdSignInEvents",
         action: "Review cloud sign-in risk score and location anomalies",
-        kql: `AADSignInEventsBeta
+        kql: `EntraIdSignInEvents
 | where Timestamp > ago(30d)
 | where AccountUpn =~ "<AccountUpn from IdentityLogonEvents>"
 | project Timestamp, AccountUpn, IPAddress, Country, City,
@@ -1287,7 +1287,7 @@ AADSignInEventsBeta
     links: [
       { from: "DataSecurityEvents",  to: "CloudAppEvents",     col: "AccountUpn" },
       { from: "CloudAppEvents",      to: "IdentityLogonEvents",col: "AccountUpn" },
-      { from: "IdentityLogonEvents", to: "AADSignInEventsBeta",col: "AccountUpn" },
+      { from: "IdentityLogonEvents", to: "EntraIdSignInEvents",col: "AccountUpn" },
       { from: "CloudAppEvents",      to: "DeviceFileEvents",   col: "AccountUpn → DeviceId" },
       { from: "DeviceFileEvents",    to: "DeviceProcessEvents",col: "InitiatingProcessId" },
       { from: "CloudAppEvents",      to: "EmailEvents",        col: "AccountUpn" },

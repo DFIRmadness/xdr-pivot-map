@@ -10,6 +10,11 @@ function tableColor(tableName) {
   return t ? DOMAINS[t.domain].color : "#8890b8";
 }
 
+function tableDeprecation(tableName) {
+  const t = TABLES.find(t => t.id === tableName);
+  return t?.deprecated ? { replacedBy: t.replacedBy } : null;
+}
+
 export default function MitreCrosswalk() {
   const [selectedTactic, setSelectedTactic] = useState(null);
   const [expandedTechnique, setExpandedTechnique] = useState(null);
@@ -228,16 +233,20 @@ export default function MitreCrosswalk() {
                         </div>
                         {!isOpen && (
                           <div style={{ marginTop: 6, display: "flex", gap: 6, flexWrap: "wrap" }}>
-                            {tech.xdrMappings.map((m, i) => (
-                              <span key={i} style={{
-                                fontSize: 10, padding: "2px 7px", borderRadius: 2,
-                                background: "var(--bg-3)", border: "1px solid var(--bd-2)",
-                                color: tableColor(m.table),
-                                letterSpacing: "0.04em",
-                              }}>
-                                {m.table}
-                              </span>
-                            ))}
+                            {tech.xdrMappings.map((m, i) => {
+                              const dep = tableDeprecation(m.table);
+                              return (
+                                <span key={i} style={{
+                                  fontSize: 10, padding: "2px 7px", borderRadius: 2,
+                                  background: "var(--bg-3)",
+                                  border: `1px solid ${dep ? "#f59e0b55" : "var(--bd-2)"}`,
+                                  color: dep ? "#f59e0b" : tableColor(m.table),
+                                  letterSpacing: "0.04em",
+                                }}>
+                                  {m.table}{dep ? " ⚠" : ""}
+                                </span>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
@@ -255,22 +264,34 @@ export default function MitreCrosswalk() {
                           const kqlKey = `${tech.id}:${mi}`;
                           const kqlOpen = expandedKql === kqlKey;
                           const col = tableColor(mapping.table);
+                          const dep = tableDeprecation(mapping.table);
                           return (
                             <div key={mi} style={{
                               margin: "12px 24px",
                               background: "var(--bg-float)",
-                              border: `1px solid ${col}33`,
+                              border: `1px solid ${dep ? "#f59e0b44" : col + "33"}`,
                               borderRadius: 4, overflow: "hidden",
                             }}>
                               {/* Card header */}
                               <div style={{
                                 padding: "10px 14px",
-                                background: col + "0d",
-                                borderBottom: `1px solid ${col}22`,
-                                display: "flex", alignItems: "center", justifyContent: "space-between",
+                                background: dep ? "#f59e0b0a" : col + "0d",
+                                borderBottom: `1px solid ${dep ? "#f59e0b22" : col + "22"}`,
+                                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap",
                               }}>
-                                <div style={{ fontSize: 13, fontWeight: 700, color: col, letterSpacing: "0.04em" }}>
-                                  {mapping.table}
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                  <span style={{ fontSize: 13, fontWeight: 700, color: dep ? "#f59e0b" : col, letterSpacing: "0.04em" }}>
+                                    {mapping.table}
+                                  </span>
+                                  {dep && (
+                                    <span style={{
+                                      fontSize: 10, padding: "1px 6px", borderRadius: 2,
+                                      background: "#f59e0b18", border: "1px solid #f59e0b55",
+                                      color: "#f59e0b", letterSpacing: "0.04em",
+                                    }}>
+                                      DEPRECATED → {dep.replacedBy}
+                                    </span>
+                                  )}
                                 </div>
                                 <div style={{
                                   fontSize: 10, color: "var(--tx-4)", letterSpacing: "0.1em",

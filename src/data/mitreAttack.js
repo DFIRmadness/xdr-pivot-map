@@ -144,9 +144,9 @@ export const TECHNIQUES = [
     description: "Adversaries compromise existing accounts — email, social media, cloud — rather than creating new ones, to blend in with normal activity.",
     xdrMappings: [
       {
-        table: "AADSignInEventsBeta",
+        table: "EntraIdSignInEvents",
         columns: ["AccountUpn", "IPAddress", "Country", "IsAnonymousProxy", "RiskLevelDuringSignIn", "ErrorCode"],
-        kql: `AADSignInEventsBeta
+        kql: `EntraIdSignInEvents
 | where Timestamp > ago(7d)
 | where RiskLevelDuringSignIn in ("high", "medium")
 | where ErrorCode == 0
@@ -208,9 +208,9 @@ export const TECHNIQUES = [
     description: "Adversaries obtain and abuse credentials of existing accounts to gain initial access and bypass security controls. Includes cloud, domain, and local accounts.",
     xdrMappings: [
       {
-        table: "AADSignInEventsBeta",
+        table: "EntraIdSignInEvents",
         columns: ["AccountUpn", "IPAddress", "Country", "IsAnonymousProxy", "RiskLevelDuringSignIn", "ConditionalAccessStatus"],
-        kql: `AADSignInEventsBeta
+        kql: `EntraIdSignInEvents
 | where Timestamp > ago(1d)
 | where ErrorCode == 0
 | where Country != "<expected_country>"
@@ -329,9 +329,9 @@ export const TECHNIQUES = [
 | project Timestamp, DeviceName, AccountName, LogonType, RemoteIP`,
       },
       {
-        table: "AADSignInEventsBeta",
+        table: "EntraIdSignInEvents",
         columns: ["AccountUpn", "IPAddress", "Country", "Application", "ConditionalAccessStatus", "RiskLevelDuringSignIn"],
-        kql: `AADSignInEventsBeta
+        kql: `EntraIdSignInEvents
 | where Timestamp > ago(1d)
 | where Application in ("Azure VPN", "GlobalProtect", "Cisco AnyConnect", "F5 BIG-IP", "Citrix Gateway")
     or Application has_any ("VPN", "Remote Access", "Gateway")
@@ -1674,9 +1674,9 @@ export const TECHNIQUES = [
 | order by Logins desc`,
       },
       {
-        table: "AADSignInEventsBeta",
+        table: "EntraIdSignInEvents",
         columns: ["AccountUpn", "IPAddress", "ClientAppUsed", "AppDisplayName", "IsDeviceCompliant"],
-        kql: `AADSignInEventsBeta
+        kql: `EntraIdSignInEvents
 | where Timestamp > ago(1d)
 | where ClientAppUsed in~ ("Browser", "Other clients", "Mobile Apps and Desktop clients")
 | where IsDeviceCompliant != true
@@ -1733,9 +1733,9 @@ export const TECHNIQUES = [
 | order by FailCount desc`,
       },
       {
-        table: "AADSignInEventsBeta",
+        table: "EntraIdSignInEvents",
         columns: ["AccountUpn", "IPAddress", "ErrorCode", "Country", "RiskLevelDuringSignIn"],
-        kql: `AADSignInEventsBeta
+        kql: `EntraIdSignInEvents
 | where Timestamp > ago(1h)
 | where ErrorCode in (50126, 50053, 50055, 50056)
 | summarize Failures = count() by AccountUpn, IPAddress, bin(Timestamp, 5m)
@@ -1779,9 +1779,9 @@ export const TECHNIQUES = [
     description: "Adversaries steal session cookies from browsers or web applications to bypass authentication and MFA. AiTM proxies harvest tokens in real-time; malware and browser extensions exfiltrate stored cookies.",
     xdrMappings: [
       {
-        table: "AADSignInEventsBeta",
+        table: "EntraIdSignInEvents",
         columns: ["AccountUpn", "IPAddress", "Country", "IsManaged", "SessionId", "UserAgent", "RiskLevelDuringSignIn"],
-        kql: `AADSignInEventsBeta
+        kql: `EntraIdSignInEvents
 | where Timestamp > ago(1d)
 | where ErrorCode == 0
 // Replay: same account, different IP/country within short window
@@ -1819,9 +1819,9 @@ export const TECHNIQUES = [
     description: "Adversaries steal OAuth access tokens and refresh tokens from applications, browsers, or the filesystem to access cloud resources without needing credentials — device code phishing is a common delivery vector.",
     xdrMappings: [
       {
-        table: "AADSignInEventsBeta",
+        table: "EntraIdSignInEvents",
         columns: ["AccountUpn", "IPAddress", "ClientAppUsed", "AppDisplayName", "ErrorCode", "IsDeviceCompliant"],
-        kql: `AADSignInEventsBeta
+        kql: `EntraIdSignInEvents
 | where Timestamp > ago(1d)
 | where ClientAppUsed =~ "Azure Active Directory PowerShell"
     or ClientAppUsed has "device code"
@@ -1858,14 +1858,14 @@ export const TECHNIQUES = [
     description: "Adversaries position themselves between a user and a legitimate resource to intercept credentials and session tokens. AiTM (adversary-in-the-middle) phishing proxies real login pages, satisfying MFA while stealing the session cookie in real time.",
     xdrMappings: [
       {
-        table: "AADSignInEventsBeta",
+        table: "EntraIdSignInEvents",
         columns: ["AccountUpn", "IPAddress", "Country", "UserAgent", "RiskLevelDuringSignIn", "IsAnonymousProxy"],
-        kql: `AADSignInEventsBeta
+        kql: `EntraIdSignInEvents
 | where Timestamp > ago(1d)
 | where ErrorCode == 0
 | where RiskLevelDuringSignIn == "high" or IsAnonymousProxy == true
 | join kind=inner (
-    AADSignInEventsBeta
+    EntraIdSignInEvents
     | where Timestamp > ago(1d) and ErrorCode == 0
     | summarize SignInIPs = make_set(IPAddress) by AccountUpn
 ) on AccountUpn
@@ -1991,9 +1991,9 @@ export const TECHNIQUES = [
     description: "Adversaries generate repeated MFA push notifications (MFA fatigue / MFA bombing) to overwhelm users into approving access. Often paired with a valid stolen password to trigger the MFA prompt.",
     xdrMappings: [
       {
-        table: "AADSignInEventsBeta",
+        table: "EntraIdSignInEvents",
         columns: ["AccountUpn", "IPAddress", "ErrorCode", "RiskLevelDuringSignIn", "Country"],
-        kql: `AADSignInEventsBeta
+        kql: `EntraIdSignInEvents
 | where Timestamp > ago(1h)
 // ErrorCode 500121 = MFA required, user hasn't completed; repeated = MFA fatigue
 | where ErrorCode in (500121, 50074, 50076)
@@ -2042,9 +2042,9 @@ export const TECHNIQUES = [
     description: "Adversaries forge SAML tokens using stolen signing certificates (Golden SAML) to authenticate as any user without credentials. Requires compromise of AD FS or similar federation infrastructure.",
     xdrMappings: [
       {
-        table: "AADSignInEventsBeta",
+        table: "EntraIdSignInEvents",
         columns: ["AccountUpn", "IPAddress", "Country", "AuthenticationRequirement", "ConditionalAccessStatus", "UserAgent"],
-        kql: `AADSignInEventsBeta
+        kql: `EntraIdSignInEvents
 | where Timestamp > ago(1d)
 | where ErrorCode == 0
 | where AuthenticationRequirement == "singleFactorAuthentication"
@@ -2565,9 +2565,9 @@ export const TECHNIQUES = [
     description: "Adversaries log in to cloud management portals (Azure Portal, AWS Console, GCP Console) via browser to enumerate and manage cloud resources after stealing credentials.",
     xdrMappings: [
       {
-        table: "AADSignInEventsBeta",
+        table: "EntraIdSignInEvents",
         columns: ["AccountUpn", "IPAddress", "Country", "AppDisplayName", "IsDeviceCompliant", "RiskLevelDuringSignIn"],
-        kql: `AADSignInEventsBeta
+        kql: `EntraIdSignInEvents
 | where Timestamp > ago(1d)
 | where AppDisplayName in ("Azure Portal", "Microsoft Azure", "Azure Active Directory")
 | where ErrorCode == 0
@@ -2847,9 +2847,9 @@ export const TECHNIQUES = [
     description: "Adversaries move laterally by logging into cloud services and resources using stolen credentials or tokens — accessing cloud VMs, storage, email, or services in adjacent tenants.",
     xdrMappings: [
       {
-        table: "AADSignInEventsBeta",
+        table: "EntraIdSignInEvents",
         columns: ["AccountUpn", "IPAddress", "AppDisplayName", "Country", "IsAnonymousProxy", "RiskLevelDuringSignIn"],
-        kql: `AADSignInEventsBeta
+        kql: `EntraIdSignInEvents
 | where Timestamp > ago(1d)
 | where ErrorCode == 0
 | summarize Apps = dcount(AppDisplayName), IPs = make_set(IPAddress) by AccountUpn, bin(Timestamp, 1h)

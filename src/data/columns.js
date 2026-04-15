@@ -12,7 +12,7 @@ export const COLUMN_INFO = {
   "AccountUpn": {
     docs: "User Principal Name (UPN) of the account in user@domain.com format, as recorded by the data source. May reflect the on-premises UPN or the cloud UPN depending on the table.",
     plain: "The user's login name in email format. The most consistent cross-table user identifier — works across device, identity, email, and cloud app tables.",
-    dfir: "Your primary identity pivot. An attacker who compromises a single account will leave UPN breadcrumbs across EmailEvents, IdentityLogonEvents, DeviceLogonEvents, AADSignInEventsBeta, and CloudAppEvents. Correlating all of them paints the full picture of what they did after initial access.",
+    dfir: "Your primary identity pivot. An attacker who compromises a single account will leave UPN breadcrumbs across EmailEvents, IdentityLogonEvents, DeviceLogonEvents, EntraIdSignInEvents, CloudAppEvents, and BehaviorInfo. Correlating all of them paints the full picture of what they did after initial access.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-identitylogonevents-table",
     crossTables: [
       { table: "DeviceProcessEvents" },
@@ -20,25 +20,41 @@ export const COLUMN_INFO = {
       { table: "DeviceFileEvents" },
       { table: "DeviceRegistryEvents" },
       { table: "DeviceEvents" },
+      { table: "IdentityInfo" },
+      { table: "IdentityAccountInfo" },
       { table: "IdentityLogonEvents" },
       { table: "IdentityQueryEvents" },
       { table: "IdentityDirectoryEvents" },
+      { table: "EntraIdSignInEvents" },
       { table: "AADSignInEventsBeta" },
       { table: "CloudAppEvents" },
       { table: "UrlClickEvents" },
+      { table: "AlertEvidence" },
+      { table: "BehaviorInfo" },
+      { table: "DataSecurityEvents" },
     ],
   },
 
   "AccountObjectId": {
     docs: "Unique object identifier for the account in Azure Active Directory (Entra ID). A stable GUID that persists even if the UPN or display name changes.",
     plain: "The AAD GUID for a user. More reliable than UPN for cloud pivots because it doesn't change when someone's email address changes.",
-    dfir: "Essential for cloud investigations. When an attacker renames an account or changes UPN to cover tracks, the ObjectId stays the same. Use this to join AADSignInEventsBeta into CloudAppEvents to trace what a compromised account actually did in M365.",
+    dfir: "Essential for cloud investigations. When an attacker renames an account or changes UPN to cover tracks, the ObjectId stays the same. Use this to join EntraIdSignInEvents into CloudAppEvents to trace what a compromised account actually did in M365. Also present in BehaviorEntities for UEBA correlation.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-cloudappevents-table",
     crossTables: [
+      { table: "IdentityInfo" },
+      { table: "IdentityAccountInfo" },
+      { table: "IdentityLogonEvents" },
+      { table: "IdentityDirectoryEvents" },
+      { table: "IdentityQueryEvents" },
+      { table: "EntraIdSignInEvents" },
       { table: "AADSignInEventsBeta" },
       { table: "CloudAppEvents" },
-      { table: "IdentityDirectoryEvents" },
       { table: "GraphApiAuditEvents" },
+      { table: "EmailEvents", as: "SenderObjectId" },
+      { table: "EmailAttachmentInfo", as: "SenderObjectId" },
+      { table: "AlertEvidence" },
+      { table: "BehaviorEntities" },
+      { table: "DataSecurityEvents" },
     ],
   },
 
@@ -148,8 +164,11 @@ export const COLUMN_INFO = {
       { table: "IdentityLogonEvents" },
       { table: "IdentityQueryEvents" },
       { table: "IdentityDirectoryEvents" },
+      { table: "EntraIdSignInEvents" },
       { table: "AADSignInEventsBeta" },
       { table: "CloudAppEvents" },
+      { table: "UrlClickEvents" },
+      { table: "DataSecurityEvents" },
       { table: "DeviceLogonEvents", as: "RemoteIP" },
     ],
   },
@@ -160,6 +179,7 @@ export const COLUMN_INFO = {
     dfir: "Instant triage signal. A CFO whose account suddenly signs in from a country they have never been to — while they are sitting in the office — is account takeover until proven otherwise. Always baseline normal countries for high-value accounts.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-aadsignineventsbeta-table",
     crossTables: [
+      { table: "EntraIdSignInEvents" },
       { table: "AADSignInEventsBeta" },
       { table: "IdentityLogonEvents" },
       { table: "CloudAppEvents" },
@@ -172,16 +192,18 @@ export const COLUMN_INFO = {
     dfir: "Attackers use anonymisers to obscure their origin. A legitimate employee signing in through TOR is almost never valid. Combine with RiskLevelDuringSignIn for high-confidence account compromise alerts.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-aadsignineventsbeta-table",
     crossTables: [
+      { table: "EntraIdSignInEvents" },
       { table: "AADSignInEventsBeta" },
     ],
   },
 
   "RiskLevelDuringSignIn": {
-    docs: "Entra ID Protection risk level assessed at sign-in time. Values: none, low, medium, high. Factors include leaked credentials, impossible travel, anonymous IP, and unusual sign-in properties.",
+    docs: "Entra ID Protection risk level assessed at sign-in time. Values: none, low, medium, high. Factors include leaked credentials, impossible travel, anonymous IP, and unusual sign-in properties. In EntraIdSignInEvents this is named RiskLevelAggregated.",
     plain: "Microsoft's real-time risk score for the sign-in — high means Entra thinks something is suspicious.",
     dfir: "A pre-computed threat signal you should always include in sign-in investigations. High risk + successful sign-in + no MFA challenge = Conditional Access gap. Cross-reference with IsAnonymousProxy and Country to understand what drove the risk score.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-aadsignineventsbeta-table",
     crossTables: [
+      { table: "EntraIdSignInEvents", as: "RiskLevelAggregated" },
       { table: "AADSignInEventsBeta" },
     ],
   },
@@ -192,6 +214,7 @@ export const COLUMN_INFO = {
     dfir: "Crucial for brute-force and password spray detection. A spray shows many different accounts with error 50126, then a sudden 0 (success) on one. A targeted attack shows many failures on one account. ErrorCode 50074 (MFA required) followed by success can indicate MFA fatigue or bypass.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-aadsignineventsbeta-table",
     crossTables: [
+      { table: "EntraIdSignInEvents" },
       { table: "AADSignInEventsBeta" },
     ],
   },
@@ -202,6 +225,7 @@ export const COLUMN_INFO = {
     dfir: "notApplied on a sensitive resource sign-in means no CA policy covered it — a gap in your Zero Trust posture. failure means the policy blocked it. success means it passed, but check what the policy actually required — MFA-optional policies can pass without MFA.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-aadsignineventsbeta-table",
     crossTables: [
+      { table: "EntraIdSignInEvents" },
       { table: "AADSignInEventsBeta" },
     ],
   },
@@ -232,7 +256,7 @@ export const COLUMN_INFO = {
   "DeviceId": {
     docs: "Unique identifier for a device in Microsoft Defender for Endpoint. A stable GUID assigned at onboarding that persists across renames and OS reinstalls if the device is re-enrolled.",
     plain: "The stable fingerprint of a device in MDE. More reliable than DeviceName for joining across tables because hostnames change.",
-    dfir: "Your anchor for all endpoint pivots. DeviceName can change; DeviceId does not. Always use DeviceId when joining DeviceInfo → DeviceProcessEvents → DeviceNetworkEvents → DeviceLogonEvents to avoid mismatching events across a rename.",
+    dfir: "Your anchor for all endpoint pivots. DeviceName can change; DeviceId does not. Always use DeviceId when joining DeviceInfo → DeviceProcessEvents → DeviceNetworkEvents → DeviceLogonEvents to avoid mismatching events across a rename. Also present in BehaviorInfo/BehaviorEntities and DataSecurityEvents.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-deviceinfo-table",
     crossTables: [
       { table: "DeviceInfo" },
@@ -242,9 +266,20 @@ export const COLUMN_INFO = {
       { table: "DeviceRegistryEvents" },
       { table: "DeviceLogonEvents" },
       { table: "DeviceEvents" },
+      { table: "DeviceImageLoadEvents" },
       { table: "DeviceNetworkInfo" },
+      { table: "DeviceFileCertificateInfo" },
       { table: "DeviceTvmSoftwareVulnerabilities" },
       { table: "DeviceTvmSoftwareInventory" },
+      { table: "DeviceTvmSecureConfigurationAssessment" },
+      { table: "DeviceTvmHardwareFirmware" },
+      { table: "DeviceTvmBrowserExtensions" },
+      { table: "DeviceTvmCertificateInfo" },
+      { table: "AlertEvidence" },
+      { table: "BehaviorInfo" },
+      { table: "BehaviorEntities" },
+      { table: "DataSecurityEvents" },
+      { table: "CloudDnsEvents" },
     ],
   },
 
@@ -382,10 +417,16 @@ export const COLUMN_INFO = {
       { table: "DeviceRegistryEvents" },
       { table: "DeviceLogonEvents" },
       { table: "DeviceEvents" },
+      { table: "DeviceImageLoadEvents" },
       { table: "IdentityLogonEvents" },
       { table: "IdentityQueryEvents" },
       { table: "IdentityDirectoryEvents" },
       { table: "CloudAppEvents" },
+      { table: "CloudAuditEvents" },
+      { table: "CloudProcessEvents" },
+      { table: "BehaviorInfo" },
+      { table: "BehaviorEntities" },
+      { table: "DataSecurityEvents" },
     ],
   },
 
@@ -418,9 +459,12 @@ export const COLUMN_INFO = {
     crossTables: [
       { table: "DeviceProcessEvents" },
       { table: "DeviceFileEvents" },
+      { table: "DeviceEvents" },
+      { table: "DeviceImageLoadEvents" },
       { table: "EmailAttachmentInfo" },
       { table: "AlertEvidence" },
       { table: "DeviceFileCertificateInfo" },
+      { table: "BehaviorEntities" },
     ],
   },
 
@@ -461,22 +505,25 @@ export const COLUMN_INFO = {
   },
 
   "RemotePort": {
-    docs: "TCP or UDP port number on the remote endpoint that the device connected to or received a connection from.",
-    plain: "The port number on the remote side of the connection.",
-    dfir: "Non-standard ports for common protocols are a classic C2 indicator — HTTPS on port 4443, HTTP on 8080, or DNS on a non-53 port. Also useful for lateral movement: port 445 = SMB, 3389 = RDP, 5985/5986 = WinRM/PowerShell remoting. Always combine with InitiatingProcessFileName.",
+    docs: "TCP or UDP port number on the remote endpoint. Present in DeviceNetworkEvents (outbound/inbound connections), DeviceLogonEvents (port the authentication arrived on), and DeviceEvents.",
+    plain: "The port number on the remote side of the connection or authentication.",
+    dfir: "Non-standard ports for common protocols are a classic C2 indicator — HTTPS on port 4443, HTTP on 8080, or DNS on a non-53 port. In DeviceLogonEvents, RemotePort tells you which port the authentication came in on — useful for detecting unusual pass-the-hash or NTLM relay inbound on non-standard ports. Always combine with InitiatingProcessFileName.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-devicenetworkevents-table",
     crossTables: [
       { table: "DeviceNetworkEvents" },
+      { table: "DeviceLogonEvents" },
+      { table: "DeviceEvents" },
     ],
   },
 
   "LocalPort": {
-    docs: "TCP or UDP port number on the local device side of the connection.",
+    docs: "TCP or UDP port number on the local device side of the connection. Present in DeviceNetworkEvents and DeviceEvents.",
     plain: "The port number on this device's side of the connection.",
     dfir: "Useful for identifying listening services and inbound connections. Unexpected services listening on high ports (> 1024) on endpoints — especially those created by non-system processes — can indicate backdoors or reverse shells. Compare with expected service baseline.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-devicenetworkevents-table",
     crossTables: [
       { table: "DeviceNetworkEvents" },
+      { table: "DeviceEvents" },
     ],
   },
 
@@ -505,41 +552,47 @@ export const COLUMN_INFO = {
   // ── Registry ──────────────────────────────────────────────────────────────
 
   "RegistryKey": {
-    docs: "Full path of the registry key involved in the event, including the hive prefix (e.g. HKEY_LOCAL_MACHINE\\...). Represents the container, not the individual value.",
-    plain: "The full registry path — the folder that was created or accessed.",
-    dfir: "Persistence hunting 101. Run keys (HKCU/HKLM\\...\\Run, RunOnce), service keys (HKLM\\SYSTEM\\CurrentControlSet\\Services), and AppInit_DLLs are the most common attacker-modified keys. Filter for writes to these paths from non-system processes.",
+    docs: "Full path of the registry key involved in the event, including the hive prefix (e.g. HKEY_LOCAL_MACHINE\\...). Present in DeviceRegistryEvents, DeviceEvents (for registry actions captured as misc events), and AlertEvidence.",
+    plain: "The full registry path — the folder that was created or accessed. Present in registry events, the catch-all device events table, and alert evidence.",
+    dfir: "Persistence hunting 101. Run keys (HKCU/HKLM\\...\\Run, RunOnce), service keys (HKLM\\SYSTEM\\CurrentControlSet\\Services), and AppInit_DLLs are the most common attacker-modified keys. Filter for writes to these paths from non-system processes. AlertEvidence.RegistryKey surfaces the exact key associated with a detection — use it to jump straight to the registry context without hunting through DeviceRegistryEvents.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-deviceregistryevents-table",
     crossTables: [
       { table: "DeviceRegistryEvents" },
+      { table: "DeviceEvents" },
+      { table: "AlertEvidence" },
     ],
   },
 
   "RegistryValueName": {
-    docs: "Name of the registry value that was created, modified, or deleted within the registry key.",
+    docs: "Name of the registry value that was created, modified, or deleted. Present in DeviceRegistryEvents, DeviceEvents, and AlertEvidence.",
     plain: "The name of the specific registry entry that was changed — like the filename within the folder.",
-    dfir: "Identifies exactly which value was tampered with. ImagePath in a service key changed by a non-SCM process is service hijacking. Start in a service key changed to 2 (Auto) is automatic startup. DisableAntiSpyware set to 1 is Defender disablement.",
+    dfir: "Identifies exactly which value was tampered with. ImagePath in a service key = service hijacking. Start = 2 (Auto) = automatic persistence. DisableAntiSpyware = 1 = Defender disablement. AlertEvidence carries RegistryValueName directly on the evidence row — no join to DeviceRegistryEvents needed for initial triage.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-deviceregistryevents-table",
     crossTables: [
       { table: "DeviceRegistryEvents" },
+      { table: "DeviceEvents" },
+      { table: "AlertEvidence" },
     ],
   },
 
   "RegistryValueData": {
-    docs: "Data written to the registry value — the actual value stored. For REG_SZ and REG_EXPAND_SZ types this is the string value; for REG_DWORD it is the integer.",
+    docs: "Data written to the registry value — the actual value stored. Present in DeviceRegistryEvents, DeviceEvents, and AlertEvidence.",
     plain: "The actual data stored in the registry value — the payload of the change.",
-    dfir: "Where the actual malicious payload lives in registry-based persistence. Fileless malware often stores base64-encoded PowerShell or shellcode here. LOLBin execution paths, C2 URLs, and scheduled task commands can all be written to registry values. Decode any base64 or hex you find here immediately.",
+    dfir: "Where the actual malicious payload lives in registry-based persistence. Fileless malware often stores base64-encoded PowerShell or shellcode here. AlertEvidence surfaces the RegistryValueData directly on the evidence row for immediate inspection. Decode any base64 or hex you find here immediately.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-deviceregistryevents-table",
     crossTables: [
       { table: "DeviceRegistryEvents" },
+      { table: "DeviceEvents" },
+      { table: "AlertEvidence" },
     ],
   },
 
   // ── Email ─────────────────────────────────────────────────────────────────
 
   "NetworkMessageId": {
-    docs: "Unique identifier for an email message assigned by Microsoft 365 during transport. Persists across all email-related tables for the lifetime of the message.",
-    plain: "The tracking number stamped on every email as it flows through Exchange Online. Your primary join key across all email tables.",
-    dfir: "The master pivot key for email-based attack chains. One NetworkMessageId ties together EmailEvents (delivery), EmailAttachmentInfo (attachment hashes), EmailUrlInfo (extracted links), and UrlClickEvents (user clicks). Always start an email investigation with this column.",
+    docs: "Unique identifier for an email or Teams message assigned by Microsoft 365 during transport. Persists across all email-related and Teams message tables for the lifetime of the message.",
+    plain: "The tracking number stamped on every email or Teams message as it flows through M365. Your primary join key across all email and Teams tables.",
+    dfir: "The master pivot key for email and Teams attack chains. One NetworkMessageId ties together EmailEvents/MessageEvents (delivery), EmailAttachmentInfo (attachment hashes), EmailUrlInfo/MessageUrlInfo (extracted links), UrlClickEvents (user clicks), AlertEvidence, and DataSecurityEvents. Always start an email investigation with this column.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-emailevents-table",
     crossTables: [
       { table: "EmailEvents" },
@@ -547,6 +600,12 @@ export const COLUMN_INFO = {
       { table: "EmailUrlInfo" },
       { table: "EmailPostDeliveryEvents" },
       { table: "UrlClickEvents" },
+      { table: "MessageEvents" },
+      { table: "MessagePostDeliveryEvents" },
+      { table: "MessageUrlInfo" },
+      { table: "AlertEvidence" },
+      { table: "BehaviorEntities" },
+      { table: "DataSecurityEvents" },
     ],
   },
 
@@ -653,42 +712,52 @@ export const COLUMN_INFO = {
   },
 
   "Title": {
-    docs: "Name or title of the alert as generated by the Microsoft Defender XDR detection engine or a custom detection rule.",
-    plain: "The human-readable name of the alert.",
-    dfir: "Use Title with contains or has_any to hunt for clusters of related detections — e.g. all 'Credential dumping' or 'Ransomware' alerts across the estate. Correlate with Severity and AttackTechniques to prioritise. Repeated alert titles on a single device in a short window suggest multi-stage attack progression.",
+    docs: "Name or title of the alert as generated by the Microsoft Defender XDR detection engine or a custom detection rule. AlertEvidence also carries the Title of the parent alert on each evidence row.",
+    plain: "The human-readable name of the alert. Present in both AlertInfo (one row per alert) and AlertEvidence (repeated on every evidence row for that alert).",
+    dfir: "Use Title with contains or has_any to hunt for clusters of related detections — e.g. all 'Credential dumping' or 'Ransomware' alerts across the estate. Because AlertEvidence also carries Title, you can filter evidence rows by title without first joining to AlertInfo, which makes ad-hoc hunting faster.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-alertinfo-table",
     crossTables: [
       { table: "AlertInfo" },
+      { table: "AlertEvidence" },
+      { table: "BehaviorInfo" },
     ],
   },
 
   "Severity": {
-    docs: "Severity of the alert as assessed by Defender XDR. Values: Informational, Low, Medium, High.",
-    plain: "How serious Microsoft considers the alert.",
+    docs: "Severity of the alert as assessed by Defender XDR. Values: Informational, Low, Medium, High. Present in both AlertInfo and AlertEvidence.",
+    plain: "How serious Microsoft considers the alert. Repeated on every AlertEvidence row so you can filter evidence by severity without a join.",
     dfir: "High severity alerts demand immediate triage. However, don't ignore Medium — advanced persistent threats often generate medium alerts early in the chain. Filter for High first, then pivot to related Medium alerts on the same device or account in the same timeframe to understand the full kill chain.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-alertinfo-table",
     crossTables: [
       { table: "AlertInfo" },
+      { table: "AlertEvidence" },
+      { table: "BehaviorInfo" },
     ],
   },
 
   "Category": {
-    docs: "Category of the attack activity associated with the alert, aligned to the MITRE ATT&CK framework or Microsoft threat taxonomy.",
-    plain: "The type of attack technique the alert relates to — e.g. Ransomware, CredentialAccess, LateralMovement.",
-    dfir: "Enables fleet-wide hunting for attack categories before alerts are correlated into incidents. Group alerts by Category across all devices in a time window to identify whether a single attacker is operating across multiple machines. Ransomware category alerts should trigger immediate network isolation procedures.",
+    docs: "Category of the attack activity, aligned to MITRE ATT&CK. In AlertEvidence the column is named Categories (plural). BehaviorInfo uses the same taxonomy for UEBA behaviors.",
+    plain: "The type of attack technique — e.g. Ransomware, CredentialAccess, LateralMovement. Shared across alert and behavior tables.",
+    dfir: "Enables fleet-wide hunting for attack categories before alerts are correlated into incidents. Group by Category across AlertInfo + AlertEvidence + BehaviorInfo to see whether a single attacker is generating noise across multiple detection engines simultaneously.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-alertinfo-table",
     crossTables: [
       { table: "AlertInfo" },
+      { table: "AlertEvidence", as: "Categories" },
+      { table: "BehaviorInfo" },
+      { table: "BehaviorEntities" },
     ],
   },
 
   "AttackTechniques": {
-    docs: "MITRE ATT&CK technique IDs associated with the alert, as a JSON array or pipe-delimited string. May contain multiple technique IDs.",
-    plain: "Which MITRE ATT&CK technique IDs the alert maps to.",
-    dfir: "Direct mapping between Defender alerts and the ATT&CK framework. Use has 'T1486' to find all ransomware-related alerts, or parse the array to look for multiple high-risk techniques on a single device. Cross-referencing AttackTechniques with your MITRE coverage gaps tells you whether you are detecting what you think you are detecting.",
+    docs: "MITRE ATT&CK technique IDs associated with the alert or behavior, as a JSON array or pipe-delimited string. Present in AlertInfo, AlertEvidence, BehaviorInfo, and BehaviorEntities.",
+    plain: "Which MITRE ATT&CK technique IDs this detection maps to. Shared across alert and UEBA behavior tables.",
+    dfir: "Direct mapping between Defender detections and the ATT&CK framework. Use has 'T1486' to find all ransomware-related alerts, or parse the array to look for multiple high-risk techniques on a single device. Cross-referencing AttackTechniques across AlertInfo + BehaviorInfo gives you a fuller picture of what the attacker's TTPs look like even when individual signals are below alert threshold.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-alertinfo-table",
     crossTables: [
       { table: "AlertInfo" },
+      { table: "AlertEvidence" },
+      { table: "BehaviorInfo" },
+      { table: "BehaviorEntities" },
     ],
   },
 
@@ -761,6 +830,7 @@ export const COLUMN_INFO = {
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-identitylogonevents-table",
     crossTables: [
       { table: "IdentityLogonEvents" },
+      { table: "EntraIdSignInEvents" },
       { table: "AADSignInEventsBeta" },
       { table: "CloudAppEvents" },
     ],
@@ -770,8 +840,9 @@ export const COLUMN_INFO = {
     docs: "Composite pivot combining IPAddress and AccountUpn. Used to correlate identity sign-in telemetry with endpoint or cloud events from the same source.",
     plain: "Same as AccountUpn + IPAddress — both columns together map a sign-in event back to the source machine.",
     dfir: "Same as AccountUpn + IPAddress — the column order depends on the table, but the pivot logic is identical. Use it to confirm that what you see in cloud/identity logs corresponds to actual device activity.",
-    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-aadsignineventsbeta-table",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-entraidsiginevents-table",
     crossTables: [
+      { table: "EntraIdSignInEvents" },
       { table: "AADSignInEventsBeta" },
       { table: "IdentityLogonEvents" },
       { table: "CloudAppEvents" },
@@ -781,7 +852,7 @@ export const COLUMN_INFO = {
   "AccountUpn → DeviceId": {
     docs: "Directional pivot: use AccountUpn from a cloud or identity table to find the DeviceId in DeviceLogonEvents, then continue pivoting through device tables.",
     plain: "Cloud and identity tables only have the user's UPN — look up the UPN in DeviceLogonEvents to find the DeviceId.",
-    dfir: "The essential cloud-to-endpoint bridge. When you identify suspicious cloud activity (AADSignInEventsBeta, CloudAppEvents), pivot the UPN into DeviceLogonEvents to find which physical device was used. That DeviceId then unlocks the full endpoint telemetry chain.",
+    dfir: "The essential cloud-to-endpoint bridge. When you identify suspicious cloud activity (EntraIdSignInEvents, CloudAppEvents), pivot the UPN into DeviceLogonEvents to find which physical device was used. That DeviceId then unlocks the full endpoint telemetry chain.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-devicelogonevents-table",
     crossTables: [
       { table: "DeviceLogonEvents" },
@@ -817,21 +888,25 @@ export const COLUMN_INFO = {
   // ── Email threat fields ───────────────────────────────────────────────────
 
   "ThreatTypes": {
-    docs: "List of threat types identified in the email by Microsoft Defender for Office 365, such as Malware, Phish, or Spam.",
-    plain: "What Defender thinks the email is — malware delivery, phishing, spam, or clean. Can be multiple values if the email has more than one threat indicator.",
-    dfir: "The fastest triage signal for email investigations. A ThreatTypes value of 'Phish' or 'Malware' confirms the email was weaponized. Use it to filter EmailEvents to only confirmed threats and ignore noise.",
+    docs: "List of threat types identified by Defender for Office 365, such as Malware, Phish, or Spam. Present across the full email pipeline — delivery, attachment, post-delivery, and click events.",
+    plain: "What Defender thinks the email or attachment is — malware delivery, phishing, spam, or clean. Consistent across all email tables so you can filter any stage of the pipeline.",
+    dfir: "The fastest cross-email-pipeline triage signal. Because ThreatTypes appears in EmailEvents, EmailAttachmentInfo, EmailPostDeliveryEvents, and UrlClickEvents, you can see the verdict at every stage of an attack chain — delivery, content, post-delivery action, and click. Inconsistencies between stages (e.g., delivered without a threat verdict but post-delivery ZAP fired) reveal detection timing gaps.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-emailevents-table",
     crossTables: [
       { table: "EmailEvents" },
+      { table: "EmailAttachmentInfo" },
+      { table: "EmailPostDeliveryEvents" },
+      { table: "UrlClickEvents" },
     ],
   },
 
   "ThreatNames": {
-    docs: "Names of malware or other threats detected in email attachments, as identified by Microsoft Defender antivirus and threat intelligence.",
-    plain: "The specific malware family name detected in the attachment, like 'TrojanDownloader:O97M/Donoff' or 'Phish:HTML/GenericPhish'.",
-    dfir: "Ties the email attachment directly to a known malware family. Cross-reference the name against threat intel to understand the campaign, expected behavior, and MITRE techniques. The same family name may appear in DeviceFileEvents if the file was scanned on an endpoint.",
+    docs: "Names of malware or other threats detected, as identified by Microsoft Defender antivirus and threat intelligence. Present in EmailEvents and EmailAttachmentInfo.",
+    plain: "The specific malware family name — like 'TrojanDownloader:O97M/Donoff'. Available at both the email level and the attachment level.",
+    dfir: "Ties detections directly to a known malware family across the email tables. When ThreatNames appears in EmailEvents it reflects the overall message verdict; in EmailAttachmentInfo it reflects the specific attachment. The same family name may appear in DeviceFileEvents if the file was scanned on an endpoint — use it to pivot from email delivery to endpoint execution.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-emailattachmentinfo-table",
     crossTables: [
+      { table: "EmailEvents" },
       { table: "EmailAttachmentInfo" },
     ],
   },
@@ -847,47 +922,54 @@ export const COLUMN_INFO = {
   },
 
   "UrlDomain": {
-    docs: "The domain portion of the URL found in the email, extracted by Microsoft Defender for Office 365 during email processing.",
-    plain: "Just the domain name from a link in the email, without the path or query string — e.g. 'malicious-site.example.com'.",
-    dfir: "Useful for hunting by domain rather than full URL, since attackers rotate paths while reusing infrastructure. Join UrlDomain against threat intel feeds or check against your DNS query logs to see if any internal hosts resolved it.",
+    docs: "The domain portion of the URL found in an email or Teams message, extracted by MDO during processing. Present in EmailUrlInfo and MessageUrlInfo.",
+    plain: "Just the domain name from a link — e.g. 'malicious-site.example.com'. Available in both email and Teams URL tables.",
+    dfir: "Useful for hunting by domain rather than full URL, since attackers rotate paths while reusing infrastructure. Because it's consistent across EmailUrlInfo and MessageUrlInfo, you can hunt a malicious domain across both email and Teams channels in a single query. Join UrlDomain against threat intel feeds or DNS query logs to see if any internal hosts resolved it.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-emailurlinfo-table",
     crossTables: [
       { table: "EmailUrlInfo" },
+      { table: "MessageUrlInfo" },
     ],
   },
 
   // ── Authentication fields ─────────────────────────────────────────────────
 
   "FailureReason": {
-    docs: "The reason an authentication attempt failed, as reported by the identity provider. For Kerberos and NTLM events in IdentityLogonEvents; for Azure AD events, maps to error codes.",
-    plain: "Why the login failed — wrong password, account locked, expired ticket, disabled account, etc. Each value corresponds to a Kerberos or NTLM error code that tells you the exact failure mode.",
-    dfir: "Password spray attacks produce KDC_ERR_PREAUTH_FAILED in bulk. Account lockouts generate KDC_ERR_CLIENT_REVOKED. A single account with many unique FailureReason values in a short window suggests a targeted attack trying different techniques to bypass authentication.",
+    docs: "The reason an authentication attempt failed. In IdentityLogonEvents (AD/Kerberos/NTLM) this is a Kerberos or NTLM error string. In DeviceLogonEvents (local device logons) this is a Windows logon failure reason.",
+    plain: "Why the login failed — wrong password, account locked, expired ticket, disabled account, etc. Present in both the identity-layer (AD) and device-layer (local logon) tables.",
+    dfir: "Password spray attacks produce KDC_ERR_PREAUTH_FAILED in bulk across IdentityLogonEvents. On DeviceLogonEvents, FailureReason = 'SubStatus: 0xC000006A' (wrong password) or 'SubStatus: 0xC0000234' (account locked) are the local equivalents. Correlating both tables on AccountName + DeviceName + timewindow during a suspected spray gives you the full on-prem + device picture simultaneously.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-identitylogonevents-table",
     crossTables: [
       { table: "IdentityLogonEvents" },
+      { table: "DeviceLogonEvents" },
     ],
   },
 
   "ApplicationId": {
-    docs: "The unique identifier (GUID or app ID) of the Azure AD application that the user signed into, as recorded in AADSignInEventsBeta.",
-    plain: "Which app the user was signing into — each Microsoft 365 app, third-party SaaS integration, and custom app has its own ID. The Microsoft Graph API is '00000003-0000-0000-c000-000000000000', for example.",
-    dfir: "Identifies exactly which app an attacker accessed after compromising credentials. Unexpected apps — especially the Graph API, Exchange Web Services, or third-party OAuth apps — indicate the attacker is programmatically harvesting data. Cross-reference against your approved app list.",
+    docs: "The unique identifier (GUID or app ID) of the Azure AD application involved in the event. Present across sign-in tables (both user and service principal), cloud app activity, and alert evidence.",
+    plain: "Which app was involved — each Microsoft 365 app, third-party SaaS integration, service principal, and custom app has its own ID. The Microsoft Graph API is '00000003-0000-0000-c000-000000000000', for example.",
+    dfir: "Identifies exactly which app an attacker accessed. In EntraIdSignInEvents it tells you which app a compromised user signed into. In EntraIdSpnSignInEvents it identifies which service principal or managed identity authenticated — critical for detecting compromised workload identities. In CloudAppEvents it shows which app generated the activity. Cross-reference against your approved app inventory for any unexpected values.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-aadsignineventsbeta-table",
     crossTables: [
+      { table: "EntraIdSignInEvents" },
+      { table: "EntraIdSpnSignInEvents" },
       { table: "AADSignInEventsBeta" },
       { table: "CloudAppEvents" },
+      { table: "AlertEvidence" },
     ],
   },
 
   // ── Directory / identity change fields ───────────────────────────────────
 
   "TargetAccountDisplayName": {
-    docs: "The display name of the account that was the target of a directory action, such as a group membership change, password reset, or account modification recorded in IdentityDirectoryEvents.",
-    plain: "The friendly name (first name + last name) of the account that was changed, not the account doing the changing. Tells you who was targeted by the directory modification.",
-    dfir: "Critical for detecting privilege escalation. If an attacker resets a Domain Admin's password or adds themselves to a privileged group, this field shows whose account was modified. Pair with AccountUpn (the modifier) to map the full action.",
+    docs: "The display name of the account that was the target of an identity action — a directory modification (IdentityDirectoryEvents), an authentication attempt toward a destination account (IdentityLogonEvents), or a query target (IdentityQueryEvents).",
+    plain: "The friendly name of the account that something was done to — the victim or target of the identity operation, not the account performing it.",
+    dfir: "Critical for detecting privilege escalation and lateral movement targeting. In IdentityDirectoryEvents it shows whose account was modified. In IdentityLogonEvents it reveals which account an authentication was directed at — key for detecting pass-the-ticket or delegation abuse. In IdentityQueryEvents it shows which account was looked up — useful for detecting targeted LDAP reconnaissance.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-identitydirectoryevents-table",
     crossTables: [
       { table: "IdentityDirectoryEvents" },
+      { table: "IdentityLogonEvents" },
+      { table: "IdentityQueryEvents" },
     ],
   },
 
@@ -904,22 +986,24 @@ export const COLUMN_INFO = {
   // ── Alert fields ──────────────────────────────────────────────────────────
 
   "EntityType": {
-    docs: "The type of entity represented by this row in AlertEvidence. Possible values include File, Ip, Url, User, Machine, MailMessage, MailCluster, MailBox, and CloudApplication.",
-    plain: "What kind of thing this alert evidence row is about — a file, an IP address, a user account, a device, an email, etc. Each row in AlertEvidence describes one entity involved in the alert.",
-    dfir: "Always filter by EntityType first to extract the right IOC type from an alert. EntityType == 'File' gives you hashes to hunt across endpoints; EntityType == 'Ip' gives you C2 addresses to check in network logs; EntityType == 'User' gives you compromised accounts. One alert can have dozens of evidence rows across all types.",
+    docs: "The type of entity represented by this row. In AlertEvidence: File, Ip, Url, User, Machine, MailMessage, MailCluster, MailBox, CloudApplication. In BehaviorEntities the same taxonomy is used for UEBA behavior entities.",
+    plain: "What kind of thing this evidence/behavior row is about — a file, IP, user, device, email, etc. Present in both alert and UEBA behavior tables.",
+    dfir: "Always filter by EntityType first. EntityType == 'File' gives you hashes to hunt across endpoints; 'Ip' gives you C2 addresses; 'User' gives you compromised accounts. In BehaviorEntities, filtering by EntityType lets you extract the specific entity types involved in a UEBA anomaly without manually parsing all behavior evidence rows.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-alertevidence-table",
     crossTables: [
       { table: "AlertEvidence" },
+      { table: "BehaviorEntities" },
     ],
   },
 
   "EvidenceRole": {
-    docs: "Describes the role of an entity in an alert — whether it was the attacker-controlled entity (Attacker), the victim (Victim), or contextually related (Related, ContextualTarget).",
-    plain: "Defender's classification of why this entity is part of the alert. 'Attacker' means Defender thinks this is the bad actor's asset; 'Victim' means it was targeted; 'Related' means it was involved but its role is unclear.",
-    dfir: "Filter on EvidenceRole == 'Attacker' to extract confirmed attacker-controlled IPs, files, and accounts from an alert — these are your highest-confidence IOCs. 'Victim' entities tell you the blast radius.",
+    docs: "Role of the entity in the detection — whether it was the attacker-controlled asset (Attacker), the victim (Victim), or contextually related (Related, ContextualTarget). Shared between AlertEvidence and BehaviorEntities.",
+    plain: "Defender's classification of why this entity is part of the detection. 'Attacker' = bad actor's asset; 'Victim' = targeted; 'Related' = involved but role unclear.",
+    dfir: "Filter on EvidenceRole == 'Attacker' in both AlertEvidence and BehaviorEntities to extract highest-confidence attacker-controlled IOCs across both alert-based and UEBA-based detections simultaneously. 'Victim' entities define the blast radius.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-alertevidence-table",
     crossTables: [
       { table: "AlertEvidence" },
+      { table: "BehaviorEntities" },
     ],
   },
 
@@ -932,6 +1016,7 @@ export const COLUMN_INFO = {
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-cloudappevents-table",
     crossTables: [
       { table: "CloudAppEvents" },
+      { table: "EntraIdSignInEvents" },
       { table: "AADSignInEventsBeta" },
     ],
   },
@@ -942,6 +1027,7 @@ export const COLUMN_INFO = {
     dfir: "In device code phishing, the victim authenticates via their browser at microsoft.com/devicelogin, which does NOT appear as a managed device sign-in. IsManaged = false combined with successful MFA completion is a key hunting indicator for this attack pattern. Also flags bring-your-own-device (BYOD) abuse.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-aadsignineventsbeta-table",
     crossTables: [
+      { table: "EntraIdSignInEvents" },
       { table: "AADSignInEventsBeta" },
     ],
   },
@@ -952,6 +1038,7 @@ export const COLUMN_INFO = {
     dfir: "Links a specific sign-in event to subsequent cloud and API activity from the same session token. In token theft scenarios, activity using the stolen token may share the original SessionId — revealing that actions taken from a different IP belong to the same stolen session.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-aadsignineventsbeta-table",
     crossTables: [
+      { table: "EntraIdSignInEvents" },
       { table: "AADSignInEventsBeta" },
       { table: "CloudAppEvents" },
     ],
@@ -967,6 +1054,532 @@ export const COLUMN_INFO = {
       { table: "DeviceLogonEvents" },
       { table: "DeviceFileEvents" },
       { table: "DeviceRegistryEvents" },
+    ],
+  },
+
+  // ── File hashes ───────────────────────────────────────────────────────────────
+
+  "SHA1": {
+    docs: "SHA-1 cryptographic hash of a file. Less collision-resistant than SHA256, but the primary hash used by DeviceFileCertificateInfo for code-signing lookups.",
+    plain: "The SHA-1 fingerprint of a file. Use SHA256 when available; use SHA1 to link to DeviceFileCertificateInfo to check whether a binary is legitimately signed.",
+    dfir: "The essential bridge between file execution events and code-signing validation. Join SHA1 from DeviceProcessEvents or DeviceFileEvents to DeviceFileCertificateInfo to determine if a process ran as an unsigned binary, a self-signed binary, or one signed by a trusted certificate. Unsigned or self-signed binaries in system directories are high-confidence malware indicators.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-deviceprocessevents-table",
+    crossTables: [
+      { table: "DeviceProcessEvents" },
+      { table: "DeviceFileEvents" },
+      { table: "DeviceEvents" },
+      { table: "DeviceImageLoadEvents" },
+      { table: "DeviceFileCertificateInfo" },
+      { table: "AlertEvidence" },
+      { table: "BehaviorEntities" },
+    ],
+  },
+
+  // ── Initiating process identity columns (present in ALL 7 device event tables) ─
+
+  "InitiatingProcessAccountUpn": {
+    docs: "UPN of the account that owns the initiating (parent) process. Shares format with AccountUpn and is populated from the process token at event time.",
+    plain: "The user account whose session the triggering process was running under — the identity behind the parent process.",
+    dfir: "Directly links process activity in device tables back to identity provider logs. If InitiatingProcessAccountUpn is a service account, a disabled account, or an account you don't recognise, that is an immediate red flag. Pivot this value into IdentityInfo, IdentityLogonEvents, or EntraIdSignInEvents to build a full picture of the account.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-deviceprocessevents-table",
+    crossTables: [
+      { table: "DeviceProcessEvents" },
+      { table: "DeviceNetworkEvents" },
+      { table: "DeviceFileEvents" },
+      { table: "DeviceRegistryEvents" },
+      { table: "DeviceLogonEvents" },
+      { table: "DeviceEvents" },
+      { table: "DeviceImageLoadEvents" },
+    ],
+  },
+
+  "InitiatingProcessAccountObjectId": {
+    docs: "Entra ID ObjectId of the account that owns the initiating process — the cloud identity GUID linked to the process token.",
+    plain: "The Entra ID GUID of the user running the parent process. Stable across UPN changes and links directly to cloud identity tables.",
+    dfir: "Enables a direct device-to-cloud pivot without going through UPN. When a device process event carries this value, join it straight into EntraIdSignInEvents or IdentityInfo to understand the cloud-side risk posture of that account — even if the UPN has been changed to cover tracks.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-deviceprocessevents-table",
+    crossTables: [
+      { table: "DeviceProcessEvents" },
+      { table: "DeviceNetworkEvents" },
+      { table: "DeviceFileEvents" },
+      { table: "DeviceRegistryEvents" },
+      { table: "DeviceLogonEvents" },
+      { table: "DeviceEvents" },
+      { table: "DeviceImageLoadEvents" },
+    ],
+  },
+
+  "InitiatingProcessSHA1": {
+    docs: "SHA-1 hash of the initiating (parent) process binary. Present across all seven core device event tables.",
+    plain: "The hash of the parent process executable. Use it to check if the triggering process is a known-bad binary, even if it has been renamed.",
+    dfir: "Hash-based IOC matching for the parent process — critical for detecting renamed malware being used as a dropper. Check this value against threat intelligence before trusting the InitiatingProcessFileName. Also join to DeviceFileCertificateInfo to validate whether the parent process is signed by a legitimate publisher.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-deviceprocessevents-table",
+    crossTables: [
+      { table: "DeviceProcessEvents" },
+      { table: "DeviceNetworkEvents" },
+      { table: "DeviceFileEvents" },
+      { table: "DeviceRegistryEvents" },
+      { table: "DeviceLogonEvents" },
+      { table: "DeviceEvents" },
+      { table: "DeviceImageLoadEvents" },
+      { table: "DeviceFileCertificateInfo", as: "SHA1" },
+    ],
+  },
+
+  "InitiatingProcessSHA256": {
+    docs: "SHA-256 hash of the initiating (parent) process binary. Present across all seven core device event tables.",
+    plain: "The SHA-256 fingerprint of the parent process executable — more reliable than SHA1 for threat intel lookups.",
+    dfir: "Higher-confidence hash-based IOC for the parent process. Use this for VirusTotal lookups or MDE threat intelligence queries. More resistant to hash collisions than SHA1. When combined with InitiatingProcessFileName, reveals masquerading: the same binary hash appearing under different process names is a process hollowing indicator.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-deviceprocessevents-table",
+    crossTables: [
+      { table: "DeviceProcessEvents" },
+      { table: "DeviceNetworkEvents" },
+      { table: "DeviceFileEvents" },
+      { table: "DeviceRegistryEvents" },
+      { table: "DeviceLogonEvents" },
+      { table: "DeviceEvents" },
+      { table: "DeviceImageLoadEvents" },
+    ],
+  },
+
+  "InitiatingProcessLogonId": {
+    docs: "Logon session ID of the session in which the initiating process was running. Device-scoped identifier — only unique when combined with DeviceId.",
+    plain: "The logon session that spawned the parent process. Use it to join back to the specific logon event that created the session.",
+    dfir: "Ties the parent process lineage directly back to the originating logon event without needing AccountName. Join DeviceId + InitiatingProcessLogonId to DeviceLogonEvents to find the exact logon (interactive, network, RDP) that started the session chain that led to the suspicious activity.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-deviceprocessevents-table",
+    crossTables: [
+      { table: "DeviceProcessEvents" },
+      { table: "DeviceNetworkEvents" },
+      { table: "DeviceFileEvents" },
+      { table: "DeviceRegistryEvents" },
+      { table: "DeviceEvents" },
+      { table: "DeviceImageLoadEvents" },
+      { table: "DeviceLogonEvents", as: "LogonId" },
+    ],
+  },
+
+  // ── Process identity / stability columns ─────────────────────────────────────
+
+  "ProcessUniqueId": {
+    docs: "A stable unique identifier for a process derived from the process creation timestamp and PID. Unlike raw PIDs, ProcessUniqueId does not get recycled — it remains unique across the device's lifetime.",
+    plain: "A collision-resistant process ID that won't be reused after the process exits. Use this instead of ProcessId when building process trees across wide time windows.",
+    dfir: "Eliminates the false-positive risk of PID reuse in long-running hunts. When building process trees over days or weeks, PID values are recycled many times. ProcessUniqueId lets you reliably trace a parent-child chain from an initial infection event to lateral movement actions hours or days later.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-deviceprocessevents-table",
+    crossTables: [
+      { table: "DeviceProcessEvents" },
+      { table: "DeviceNetworkEvents" },
+      { table: "DeviceFileEvents" },
+      { table: "DeviceRegistryEvents" },
+      { table: "DeviceEvents" },
+      { table: "DeviceImageLoadEvents" },
+    ],
+  },
+
+  "InitiatingProcessUniqueId": {
+    docs: "A stable unique identifier for the initiating (parent) process, combining creation time and PID for collision-resistant process lineage tracking.",
+    plain: "The collision-resistant unique ID of the parent process — pairs with ProcessUniqueId to build reliable process trees.",
+    dfir: "The complementary field to ProcessUniqueId. Join InitiatingProcessUniqueId = ProcessUniqueId across all device event tables to traverse the full process tree from a leaf node all the way back to the original infection vector. Essential for long-dwell threat hunts where PID reuse would otherwise break the chain.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-deviceprocessevents-table",
+    crossTables: [
+      { table: "DeviceProcessEvents" },
+      { table: "DeviceNetworkEvents" },
+      { table: "DeviceFileEvents" },
+      { table: "DeviceRegistryEvents" },
+      { table: "DeviceEvents" },
+      { table: "DeviceImageLoadEvents" },
+      { table: "DeviceLogonEvents" },
+    ],
+  },
+
+  // ── RDP / remote session tracking columns ────────────────────────────────────
+
+  "IsInitiatingProcessRemoteSession": {
+    docs: "Boolean indicating whether the process that triggered the event was running inside a remote session (e.g. RDP, remote PowerShell, or similar remote access mechanism).",
+    plain: "True if the parent process was running in an RDP or remote session — not a locally-initiated process.",
+    dfir: "Instant lateral movement signal. If IsInitiatingProcessRemoteSession is true, the process chain originated from a remote session — not local keyboard input. Combine with InitiatingProcessRemoteSessionDeviceName and InitiatingProcessRemoteSessionIP to identify the source machine of the remote session.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-deviceprocessevents-table",
+    crossTables: [
+      { table: "DeviceProcessEvents" },
+      { table: "DeviceNetworkEvents" },
+      { table: "DeviceFileEvents" },
+      { table: "DeviceRegistryEvents" },
+      { table: "DeviceEvents" },
+      { table: "DeviceImageLoadEvents" },
+    ],
+  },
+
+  "InitiatingProcessRemoteSessionDeviceName": {
+    docs: "Device name (hostname) of the device from which the remote session — in which the initiating process was running — was established.",
+    plain: "The source device of the remote session that the parent process was running in. Identifies where the remote connection came from.",
+    dfir: "Pinpoints the lateral movement source device. When a process tree originates in a remote session, this field tells you the hostname of the machine the attacker used to connect. Cross-reference that hostname in DeviceInfo and DeviceLogonEvents to understand what happened on the source machine.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-deviceprocessevents-table",
+    crossTables: [
+      { table: "DeviceProcessEvents" },
+      { table: "DeviceNetworkEvents" },
+      { table: "DeviceFileEvents" },
+      { table: "DeviceRegistryEvents" },
+      { table: "DeviceEvents" },
+      { table: "DeviceImageLoadEvents" },
+    ],
+  },
+
+  "InitiatingProcessRemoteSessionIP": {
+    docs: "IP address of the device that established the remote session in which the initiating process was running.",
+    plain: "The source IP of the remote session that spawned the parent process.",
+    dfir: "Complements InitiatingProcessRemoteSessionDeviceName for lateral movement tracing. When the source device hostname isn't available (e.g. non-domain-joined machine), the IP is your fallback to identify the lateral movement source. Match against DeviceNetworkInfo.IPAddresses to resolve it to a managed device.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-deviceprocessevents-table",
+    crossTables: [
+      { table: "DeviceProcessEvents" },
+      { table: "DeviceNetworkEvents" },
+      { table: "DeviceFileEvents" },
+      { table: "DeviceRegistryEvents" },
+      { table: "DeviceEvents" },
+      { table: "DeviceImageLoadEvents" },
+    ],
+  },
+
+  // ── Device exposure columns ───────────────────────────────────────────────────
+
+  "IsInternetFacing": {
+    docs: "Boolean indicating whether the device has been identified as internet-facing — i.e., has open ports accessible from the public internet as assessed by Microsoft's external attack surface management.",
+    plain: "True if the device can be reached directly from the internet. Internet-facing devices are in your external attack surface.",
+    dfir: "Critical for prioritising vulnerability and exploit detection. An internet-facing device with a critical CVE is a direct exploitation target, not just a theoretical risk. Filter DeviceTvmSoftwareVulnerabilities on DeviceId where IsInternetFacing is true and CvssScore >= 9.0 for your highest-priority patch targets.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-deviceinfo-table",
+    crossTables: [
+      { table: "DeviceInfo" },
+    ],
+  },
+
+  "ExposureLevel": {
+    docs: "Risk exposure level of the device as assessed by Microsoft Defender Vulnerability Management. Values: None, Low, Medium, High. Factors in CVE severity, exploit availability, device criticality, and internet exposure.",
+    plain: "Microsoft's overall exposure risk score for the device. High means it has serious unpatched vulnerabilities that are likely exploitable.",
+    dfir: "Use ExposureLevel as a rapid triage filter during active incidents. A device involved in suspicious activity that also has ExposureLevel=High has likely been targeted specifically for its vulnerabilities. Pivot from DeviceInfo to DeviceTvmSoftwareVulnerabilities on DeviceId to get the specific CVEs driving the score.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-deviceinfo-table",
+    crossTables: [
+      { table: "DeviceInfo" },
+    ],
+  },
+
+  "AssetValue": {
+    docs: "Business criticality value assigned to the device in Microsoft Defender Vulnerability Management. Values: Normal, Low, High. High-value assets receive elevated risk scoring.",
+    plain: "How business-critical the device is — High means it's a key server or sensitive endpoint that should be prioritised for patching and monitoring.",
+    dfir: "Combine with ExposureLevel for risk-based incident triage. A high-AssetValue device involved in suspicious lateral movement should be your first isolation candidate regardless of how mundane the initial alert seemed. Attackers deliberately target crown jewel systems — AssetValue flags which ones those are.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-deviceinfo-table",
+    crossTables: [
+      { table: "DeviceInfo" },
+    ],
+  },
+
+  // ── Account on-premises SID ───────────────────────────────────────────────────
+
+  "AccountSid": {
+    docs: "Windows Security Identifier (SID) for the account. A stable binary identifier assigned by the domain controller or local system. Persists across account renames.",
+    plain: "The Windows SID of the account — a unique binary identity that survives name changes. The on-premises equivalent of ObjectId.",
+    dfir: "Bridges endpoint events (which use SID natively) with identity events. Useful in hybrid environments where on-prem AD events in IdentityLogonEvents and IdentityDirectoryEvents need to be correlated with DeviceProcessEvents and DeviceLogonEvents. Also useful for detecting well-known SID abuse: S-1-5-18 (SYSTEM), S-1-5-19/20 (Local Service/Network Service) running unexpected processes.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-devicelogonevents-table",
+    crossTables: [
+      { table: "DeviceProcessEvents" },
+      { table: "DeviceLogonEvents" },
+      { table: "DeviceFileEvents" },
+      { table: "DeviceRegistryEvents" },
+      { table: "DeviceEvents" },
+      { table: "IdentityInfo", as: "OnPremSid" },
+      { table: "IdentityLogonEvents" },
+      { table: "IdentityDirectoryEvents" },
+      { table: "AlertEvidence" },
+      { table: "BehaviorEntities" },
+    ],
+  },
+
+  // ── Email / identity bridge columns ──────────────────────────────────────────
+
+  "InternetMessageId": {
+    docs: "The RFC 5322 Message-ID header value of the email, which is set by the originating mail server. Unlike NetworkMessageId (which is Microsoft-assigned), InternetMessageId is set by the sending server and may appear in logs outside of Microsoft 365.",
+    plain: "The external message ID the sending mail server stamped on the email — useful for correlating M365 email events with external mail logs or SIEM data from mail gateways.",
+    dfir: "Enables cross-system email correlation. If your on-premises mail gateway, third-party SIEM, or external mail relay logs email by the RFC Message-ID header, you can use InternetMessageId to tie those logs back to the M365 investigation in EmailEvents and EmailPostDeliveryEvents.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-emailevents-table",
+    crossTables: [
+      { table: "EmailEvents" },
+      { table: "EmailPostDeliveryEvents" },
+    ],
+  },
+
+  "SenderObjectId": {
+    docs: "The Entra ID ObjectId of the sender account, when the sender is an authenticated Microsoft 365 user. Links email events directly to the identity layer without needing to resolve a UPN.",
+    plain: "The Entra ID GUID of who sent the email. Populated only for internal senders or authenticated relay — empty for external senders.",
+    dfir: "Enables direct email-to-identity pivot without UPN matching. When investigating Business Email Compromise or internal phishing from a compromised account, join SenderObjectId to IdentityInfo and EntraIdSignInEvents to see the full account context — including risk level, MFA status, and concurrent sign-ins — without needing to look up the UPN first.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-emailevents-table",
+    crossTables: [
+      { table: "EmailEvents" },
+      { table: "EmailAttachmentInfo" },
+      { table: "IdentityInfo", as: "AccountObjectId" },
+      { table: "EntraIdSignInEvents", as: "AccountObjectId" },
+    ],
+  },
+
+  "RecipientObjectId": {
+    docs: "The Entra ID ObjectId of the recipient account. Links email events directly to the identity and device layer for the recipient.",
+    plain: "The Entra ID GUID of who received the email. Enables direct join to identity and device tables to understand the recipient's endpoint posture.",
+    dfir: "Bypasses UPN resolution for pivoting from email recipient to device activity. Join RecipientObjectId to IdentityInfo (AccountObjectId) to get device memberships and risk level, then to DeviceLogonEvents to find which machine the recipient was on when the email arrived.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-emailevents-table",
+    crossTables: [
+      { table: "EmailEvents" },
+      { table: "EmailAttachmentInfo" },
+      { table: "EmailPostDeliveryEvents" },
+      { table: "IdentityInfo", as: "AccountObjectId" },
+    ],
+  },
+
+  "UrlLocation": {
+    docs: "Location within an email or Teams message where the URL was found. Values include: Header, Body, Attachment, QRCode. The QRCode value indicates the URL was extracted from an embedded QR code image.",
+    plain: "Where in the message the URL was found. QRCode is particularly notable — it means the link was hidden inside a QR code image, a technique used to bypass text-based URL scanning.",
+    dfir: "The critical QR code phishing detection column. Filter EmailUrlInfo where UrlLocation == 'QRCode' to find all QR phishing attempts in your environment — standard URL scanning often misses these. Join to UrlClickEvents to find who actually scanned the QR code and clicked through. Volume of QRCode URLs in recent 30 days is a good baseline for detection rule tuning.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-emailurlinfo-table",
+    crossTables: [
+      { table: "EmailUrlInfo" },
+      { table: "MessageUrlInfo" },
+    ],
+  },
+
+  // ── Cloud App anomaly detection columns ──────────────────────────────────────
+
+  "IsAdminOperation": {
+    docs: "Boolean indicating whether the cloud app activity was performed using administrative privileges — for example, a global admin accessing another user's mailbox or an admin modifying tenant-wide settings.",
+    plain: "True if the cloud action was performed as an admin operation, not a regular user action.",
+    dfir: "High-value filter for privileged account abuse investigation. An attacker who has compromised a global admin will generate IsAdminOperation = true events. Filter CloudAppEvents for IsAdminOperation = true from accounts that don't normally perform admin actions — look for mass mailbox access, user account modifications, app consent changes, or conditional access policy modifications.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-cloudappevents-table",
+    crossTables: [
+      { table: "CloudAppEvents" },
+    ],
+  },
+
+  "UncommonForUser": {
+    docs: "A dynamic JSON array of fields in the event that are uncommon or anomalous compared to the user's historical baseline behaviour as computed by Defender for Cloud Apps UEBA.",
+    plain: "A list of things in this event that are unusual for this particular user — Defender's built-in anomaly detection has flagged these specific fields as deviating from baseline.",
+    dfir: "Pre-computed behavioural anomaly signal. Rather than building your own baseline queries, check this field for any non-empty value. If UncommonForUser contains 'IPAddress' it means the user is connecting from a new IP; 'Application' means a new app; 'UserAgent' means a new browser or client. Multiple fields flagged simultaneously is a strong account compromise signal.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-cloudappevents-table",
+    crossTables: [
+      { table: "CloudAppEvents" },
+    ],
+  },
+
+  "OAuthAppId": {
+    docs: "The application ID of the OAuth app that performed the cloud action, when the event was generated by an OAuth application acting on behalf of a user or service principal.",
+    plain: "The OAuth app that did this action — distinct from the user's own app session. Populated when a third-party OAuth integration or service principal is acting as the agent.",
+    dfir: "Critical for detecting OAuth app abuse and consent grant attacks. An attacker who tricks a user into granting consent to a malicious OAuth app will generate CloudAppEvents with suspicious OAuthAppId values performing data access on behalf of the user. Find all OAuthAppId values accessing sensitive data (email, files, directory) for users who recently granted new consent.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-cloudappevents-table",
+    crossTables: [
+      { table: "CloudAppEvents" },
+      { table: "AlertEvidence", as: "OAuthApplicationId" },
+    ],
+  },
+
+  // ── Entra ID sign-in columns ──────────────────────────────────────────────────
+
+  "EntraIdDeviceId": {
+    docs: "The Entra ID (Azure AD) device object identifier for the device used to sign in. This is the Entra-registered device ID, as distinct from the MDE DeviceId. Introduced in EntraIdSignInEvents to replace the deprecated AadDeviceId field.",
+    plain: "The Entra ID registration ID of the device that signed in. Links the sign-in event to Entra device compliance and management status — different from the MDE device sensor ID.",
+    dfir: "Essential for zero-trust gap analysis. A sign-in where EntraIdDeviceId is empty means the device is not Entra-registered — it has no device compliance policy. Combine with IsManaged and IsCompliant to find sign-ins from unmanaged devices accessing sensitive resources. In device code phishing, the legitimate user's device shows a valid EntraIdDeviceId but the attacker's token usage shows none.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-entraidsiginevents-table",
+    crossTables: [
+      { table: "EntraIdSignInEvents" },
+    ],
+  },
+
+  "IsCompliant": {
+    docs: "Boolean indicating whether the device used to sign in meets Intune or Entra ID compliance policies at the time of sign-in.",
+    plain: "Was the device compliant with Intune device management policies when this sign-in happened?",
+    dfir: "Zero Trust posture signal for device-based Conditional Access. A successful sign-in to a sensitive resource where IsCompliant = false means CA device compliance policies aren't enforced for that resource. In BYOD and AiTM scenarios, IsCompliant = false alongside IsManaged = false is strong evidence the authentication came from an attacker-controlled device.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-aadsignineventsbeta-table",
+    crossTables: [
+      { table: "EntraIdSignInEvents" },
+      { table: "AADSignInEventsBeta" },
+    ],
+  },
+
+  "IsExternalUser": {
+    docs: "Boolean indicating whether the signing-in account is external to the tenant — i.e., a guest user from another organisation or a B2B collaboration account.",
+    plain: "True if the sign-in is from a guest or external user, not a member of this tenant.",
+    dfir: "Scopes external access investigations. Guest accounts have fewer controls and are often overlooked in security monitoring. Look for external users accessing sensitive SharePoint sites, Teams channels, or triggering IsAdminOperation events — guest accounts should almost never perform admin operations.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-aadsignineventsbeta-table",
+    crossTables: [
+      { table: "EntraIdSignInEvents" },
+      { table: "AADSignInEventsBeta" },
+      { table: "CloudAppEvents" },
+    ],
+  },
+
+  // ── Data classification columns ───────────────────────────────────────────────
+
+  "SensitivityLabel": {
+    docs: "The Microsoft Purview Information Protection sensitivity label applied to the file at the time of the event. Examples: Confidential, Highly Confidential, Public.",
+    plain: "The data classification label on the file — tells you how sensitive the organisation considers this data.",
+    dfir: "Data exfiltration severity multiplier. A file access or copy event where SensitivityLabel is 'Highly Confidential' or 'Confidential' is far more serious than the same action on an unlabelled file. In DataSecurityEvents, this field identifies which DLP policies were violated and what class of data was involved. Filter DeviceFileEvents by high SensitivityLabel to find bulk access of sensitive files.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-devicefileevents-table",
+    crossTables: [
+      { table: "DeviceFileEvents" },
+      { table: "DataSecurityEvents" },
+    ],
+  },
+
+  "FileOriginUrl": {
+    docs: "The URL from which a file was downloaded onto the device. Captured when a file is downloaded via a browser or application that provides download origin metadata.",
+    plain: "Where the file came from — the URL it was downloaded from. Only populated when MDE can attribute the file to a specific download event.",
+    dfir: "Malware delivery hunting anchor. If you know a file is malicious (by SHA256), pivot on FileOriginUrl across DeviceFileEvents to find all devices where the same file was downloaded from the same URL — revealing the blast radius of a malware distribution campaign. Also check FileOriginUrl against your web proxy logs to correlate with category and reputation data.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-devicefileevents-table",
+    crossTables: [
+      { table: "DeviceFileEvents" },
+      { table: "DeviceEvents" },
+    ],
+  },
+
+  "FileOriginIP": {
+    docs: "The IP address from which a file was downloaded onto the device, when the download source IP can be resolved.",
+    plain: "The IP address the file was downloaded from — the server that delivered the malware.",
+    dfir: "C2 and malware distribution infrastructure indicator. Cross-reference FileOriginIP against AlertEvidence and threat intelligence to confirm the download source is known-malicious infrastructure. Pivot this IP into DeviceNetworkEvents to see all endpoints that connected to it — beyond just those where the file was written.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-devicefileevents-table",
+    crossTables: [
+      { table: "DeviceFileEvents" },
+      { table: "DeviceEvents" },
+      { table: "DeviceNetworkEvents", as: "RemoteIP" },
+    ],
+  },
+
+  // ── UEBA / Behaviors tables pivot key ────────────────────────────────────────
+
+  "BehaviorId": {
+    docs: "Unique identifier for a UEBA behavior record in BehaviorInfo. Links the high-level behavior description to all its associated entities in BehaviorEntities.",
+    plain: "The join key between the two UEBA behavior tables — BehaviorInfo has the what and why; BehaviorEntities has the specific devices, users, and files involved.",
+    dfir: "UEBA behaviors represent correlated anomaly detections that may not trigger individual alerts. Join BehaviorId from BehaviorInfo to BehaviorEntities to extract the exact accounts, devices, and files involved. Cross-reference BehaviorEntities DeviceId/AccountUpn with DeviceProcessEvents and IdentityLogonEvents around the behavior's StartTime/EndTime window.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-behaviorinfo-table",
+    crossTables: [
+      { table: "BehaviorInfo" },
+      { table: "BehaviorEntities" },
+    ],
+  },
+
+  // ── Exposure Graph pivot keys ─────────────────────────────────────────────────
+
+  "NodeId": {
+    docs: "Unique identifier for a node in the Security Exposure Management graph. Nodes represent entities in your attack surface — devices, identities, Azure resources, cloud workloads.",
+    plain: "The unique ID of an entity in the attack surface graph. Use it to join ExposureGraphNodes to ExposureGraphEdges to traverse attack paths.",
+    dfir: "Attack path analysis pivot. Join NodeId from ExposureGraphNodes to SourceNodeId or TargetNodeId in ExposureGraphEdges to map all attack paths leading to or from a critical asset. The EntityIds field in ExposureGraphNodes contains the DeviceId or AccountObjectId that links back to standard XDR tables.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-exposuregraphnodes-table",
+    crossTables: [
+      { table: "ExposureGraphNodes" },
+      { table: "ExposureGraphEdges", as: "SourceNodeId" },
+      { table: "ExposureGraphEdges", as: "TargetNodeId" },
+    ],
+  },
+
+  // ── Composite pivots (additions) ─────────────────────────────────────────────
+
+  "AccountSid → IdentityInfo": {
+    docs: "Directional pivot: use AccountSid from a device event table to look up the account's full profile in IdentityInfo via OnPremSid.",
+    plain: "On-premises AD SID from endpoint events → full account profile in IdentityInfo. Useful when UPN isn't available.",
+    dfir: "Essential for hybrid environment investigations. Device event tables carry the Windows SID; IdentityInfo maps SIDs to UPNs, ObjectIds, group memberships, and risk levels. When investigating a suspicious local account (where AccountUpn is empty), the SID is the reliable link to the AD identity layer.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-identityinfo-table",
+    crossTables: [
+      { table: "DeviceProcessEvents" },
+      { table: "DeviceLogonEvents" },
+      { table: "DeviceEvents" },
+      { table: "IdentityInfo" },
+      { table: "IdentityLogonEvents" },
+      { table: "IdentityDirectoryEvents" },
+    ],
+  },
+
+  "InitiatingProcessUniqueId → ProcessUniqueId": {
+    docs: "Directional composite pivot: join InitiatingProcessUniqueId in any device event table to ProcessUniqueId in DeviceProcessEvents to walk the process tree upward toward the root.",
+    plain: "The stable parent-process key. Join child events back to parent process creation events to build an accurate, PID-collision-free process tree.",
+    dfir: "The correct way to build process trees in long-running hunts. For each suspicious process execution in DeviceProcessEvents, join InitiatingProcessUniqueId = ProcessUniqueId repeatedly until you reach a trusted root process (services.exe, svchost.exe at expected paths) or until the chain terminates. Each step reveals another layer of the attack chain.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-deviceprocessevents-table",
+    crossTables: [
+      { table: "DeviceProcessEvents" },
+      { table: "DeviceNetworkEvents" },
+      { table: "DeviceFileEvents" },
+      { table: "DeviceRegistryEvents" },
+      { table: "DeviceEvents" },
+      { table: "DeviceImageLoadEvents" },
+    ],
+  },
+
+  // ── Email campaign pivot ──────────────────────────────────────────────────────
+
+  "CampaignId": {
+    docs: "Unique identifier for an email campaign as tracked by Microsoft Defender for Office 365. Links individual email messages in EmailEvents to their parent campaign record in CampaignInfo.",
+    plain: "The ID that groups individual phishing or malware emails into a single tracked campaign. Your join key from EmailEvents into CampaignInfo.",
+    dfir: "Elevates single-email investigations to campaign-level scope. Once you have a NetworkMessageId for a suspicious email, extract its CampaignId and join to CampaignInfo to understand how many messages MDO has tied to this campaign, what threat type it is, and what other recipients were targeted. A CampaignId also appears on multiple EmailEvents rows — use it to find all deliveries in the same wave even if the email subject and sender varied.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-emailevents-table",
+    crossTables: [
+      { table: "EmailEvents" },
+      { table: "CampaignInfo" },
+    ],
+  },
+
+  // ── Cloud DNS pivot key ───────────────────────────────────────────────────────
+
+  "DnsQueryType": {
+    docs: "Type of DNS query made from a cloud workload, as recorded in CloudDnsEvents. Common values: A, AAAA, CNAME, MX, TXT, PTR. Unusual query types (TXT, NULL) are frequently used for DNS tunneling.",
+    plain: "What kind of DNS lookup was made — A record (IPv4), CNAME (alias), TXT (text record), etc. TXT and NULL record queries are rarely used legitimately and are strong DNS tunneling indicators.",
+    dfir: "Primary DNS tunneling detection column. Legitimate workloads almost never query TXT or NULL record types at high volume. Combine with high query frequency from a single DeviceId and unusually long query names (> 50 characters) to identify DNS exfiltration channels. Also watch for high entropy in the queried domain name — DGA and tunneling domains have very different entropy profiles from legitimate domains.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-clouddnsevents-table",
+    crossTables: [
+      { table: "CloudDnsEvents" },
+    ],
+  },
+
+  "DnsQueryName": {
+    docs: "The fully qualified domain name (FQDN) that was queried in the DNS request, as recorded in CloudDnsEvents.",
+    plain: "The actual domain name that was looked up — e.g. 'api.malicious-c2.com'. For DNS tunneling this will contain unusually long or high-entropy subdomains encoding exfiltrated data.",
+    dfir: "The core IOC in CloudDnsEvents. Long DnsQueryName values (> 50 chars) with high entropy subdomains are the signature of DNS tunneling. Compare DnsQueryName against threat intel blocklists and your baseline of expected cloud workload DNS queries. New domains first seen recently (< 30 days) queried heavily by cloud workloads are worth investigating.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-clouddnsevents-table",
+    crossTables: [
+      { table: "CloudDnsEvents" },
+      { table: "DeviceNetworkEvents", as: "RemoteUrl" },
+    ],
+  },
+
+  // ── Service principal sign-in pivot key ───────────────────────────────────────
+
+  "ServicePrincipalId": {
+    docs: "The unique identifier of the service principal (application or managed identity) that performed the authentication, as recorded in EntraIdSpnSignInEvents.",
+    plain: "The ID of the app or managed identity that authenticated — like AccountObjectId but for workload identities instead of users.",
+    dfir: "The primary pivot key for non-human identity investigation. When investigating suspicious cloud activity that might be a compromised service principal or managed identity, ServicePrincipalId links EntraIdSpnSignInEvents sign-ins to CloudAppEvents activity using the same identity. Unexpected service principals authenticating from unfamiliar IPs or to unusual resources are indicators of credential theft targeting workload identities.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-entraidsignineventsbeta-table",
+    crossTables: [
+      { table: "EntraIdSpnSignInEvents" },
+      { table: "CloudAppEvents", as: "AccountId" },
+    ],
+  },
+
+  // ── IdentityAccountInfo pivot key ─────────────────────────────────────────────
+
+  "OnPremSid": {
+    docs: "The on-premises Active Directory Security Identifier (SID) of an account, as stored in IdentityInfo and IdentityAccountInfo. Stable binary identity assigned by the domain controller.",
+    plain: "The on-prem AD SID that links Entra ID cloud identities back to their Active Directory counterpart — the bridge between hybrid identity tables.",
+    dfir: "Critical for hybrid environment correlation. IdentityInfo maps OnPremSid to AccountObjectId, AccountUpn, and cloud risk indicators — giving you a single lookup to connect a Windows SID from device events to the full Entra ID identity profile. Particularly important for lateral movement investigations where device events expose SIDs but you need the cloud identity context.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-identityinfo-table",
+    crossTables: [
+      { table: "IdentityInfo" },
+      { table: "IdentityAccountInfo" },
+      { table: "DeviceProcessEvents", as: "AccountSid" },
+      { table: "DeviceLogonEvents", as: "AccountSid" },
+      { table: "IdentityLogonEvents", as: "AccountSid" },
+    ],
+  },
+
+  "NetworkMessageId (Teams)": {
+    docs: "Teams messages use the same NetworkMessageId scheme as email. MessageEvents, MessagePostDeliveryEvents, and MessageUrlInfo all join on NetworkMessageId — identical pattern to email tables.",
+    plain: "Teams messages use the same tracking ID format as email. The investigation pattern is the same: NetworkMessageId → delivery (MessageEvents) → URLs (MessageUrlInfo) → post-delivery actions (MessagePostDeliveryEvents).",
+    dfir: "Expands the email phishing pivot chain to cover Teams-based phishing. Attackers increasingly use Teams for credential harvesting and malware delivery, especially after initial email compromise (send phishing from a compromised Teams account). The identical NetworkMessageId schema means your email hunting KQL translates directly to Teams hunting by swapping the table names.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-messageevents-table",
+    crossTables: [
+      { table: "MessageEvents" },
+      { table: "MessagePostDeliveryEvents" },
+      { table: "MessageUrlInfo" },
+      { table: "UrlClickEvents" },
+      { table: "EmailEvents" },
     ],
   },
 };

@@ -8,6 +8,25 @@ function tableColor(tableName) {
   return t ? DOMAINS[t.domain].color : "#8890b8";
 }
 
+function tableDeprecation(tableName) {
+  const t = TABLES.find(t => t.id === tableName);
+  return t?.deprecated ? { replacedBy: t.replacedBy } : null;
+}
+
+function DeprecatedBadge({ replacedBy, style = {} }) {
+  return (
+    <span style={{
+      fontSize: 10, padding: "1px 6px", borderRadius: 2,
+      background: "#f59e0b18", border: "1px solid #f59e0b55",
+      color: "#f59e0b", letterSpacing: "0.04em",
+      whiteSpace: "nowrap", flexShrink: 0,
+      ...style,
+    }}>
+      DEPRECATED → {replacedBy}
+    </span>
+  );
+}
+
 export function ColumnTooltip({ col }) {
   if (!col) return null;
   const info = COLUMN_INFO[col];
@@ -54,15 +73,19 @@ export function ColumnTooltip({ col }) {
           <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
             {info.crossTables.map((entry, i) => {
               const c = tableColor(entry.table);
+              const dep = tableDeprecation(entry.table);
               return (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   <span style={{
                     fontSize: 11, padding: "2px 7px", borderRadius: 2,
-                    background: c + "18", border: `1px solid ${c}44`,
-                    color: c, letterSpacing: "0.03em", flexShrink: 0,
+                    background: dep ? "#f59e0b18" : c + "18",
+                    border: `1px solid ${dep ? "#f59e0b55" : c + "44"}`,
+                    color: dep ? "#f59e0b" : c,
+                    letterSpacing: "0.03em", flexShrink: 0,
                   }}>
                     {entry.table}
                   </span>
+                  {dep && <DeprecatedBadge replacedBy={dep.replacedBy} />}
                   {entry.as && (
                     <span style={{ fontSize: 11, color: "var(--tx-4)" }}>
                       as <span style={{ color: "var(--tx-2)", fontWeight: 600 }}>{entry.as}</span>
@@ -88,17 +111,26 @@ export function NodeTooltip({ hoveredNode }) {
   const table = TABLES.find(t => t.id === hoveredNode);
   if (!table) return null;
   const col = DOMAINS[table.domain].color;
+  const dep = tableDeprecation(hoveredNode);
 
   return (
     <div style={{
       position: "absolute", top: 16, left: 16,
-      background: "var(--bg-float)", border: `1px solid ${col}44`, borderRadius: 4,
+      background: "var(--bg-float)", border: `1px solid ${dep ? "#f59e0b55" : col + "44"}`, borderRadius: 4,
       padding: "12px 18px", minWidth: 300, pointerEvents: "none",
     }}>
       <div style={{ fontSize: 11, color: col + "88", letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 5 }}>
         {DOMAINS[table.domain].label}
       </div>
-      <div style={{ fontSize: 14, fontWeight: 700, color: col }}>{table.id}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: dep ? 6 : 0 }}>
+        <span style={{ fontSize: 14, fontWeight: 700, color: dep ? "#f59e0b" : col }}>{table.id}</span>
+        {dep && <DeprecatedBadge replacedBy={dep.replacedBy} />}
+      </div>
+      {dep && (
+        <div style={{ fontSize: 11, color: "#f59e0b99", marginBottom: 6, lineHeight: 1.5 }}>
+          This table was renamed to <span style={{ color: "#f59e0b", fontWeight: 600 }}>{dep.replacedBy}</span> in December 2025. Use the new name in all queries.
+        </div>
+      )}
       <div style={{ fontSize: 12, color: "var(--tx-3)", marginTop: 5 }}>{table.desc}</div>
     </div>
   );
@@ -112,6 +144,9 @@ export function EdgeTooltip({ hoveredEdge, hoveredNode }) {
   const srcTable = TABLES.find(t => t.id === srcId);
   const tgtTable = TABLES.find(t => t.id === tgtId);
 
+  const srcDep = tableDeprecation(srcId);
+  const tgtDep = tableDeprecation(tgtId);
+
   return (
     <div style={{
       position: "absolute", top: 16, left: 16,
@@ -121,14 +156,12 @@ export function EdgeTooltip({ hoveredEdge, hoveredNode }) {
       <div style={{ fontSize: 11, color: "var(--tx-5)", letterSpacing: "0.15em", marginBottom: 8, textTransform: "uppercase" }}>
         Pivot Link
       </div>
-      <div style={{ fontSize: 13, color: "var(--tx-2)", marginBottom: 6 }}>
-        <span style={{ color: DOMAINS[srcTable?.domain]?.color }}>
-          {srcId}
-        </span>
+      <div style={{ fontSize: 13, color: "var(--tx-2)", marginBottom: 6, display: "flex", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
+        <span style={{ color: srcDep ? "#f59e0b" : DOMAINS[srcTable?.domain]?.color }}>{srcId}</span>
+        {srcDep && <DeprecatedBadge replacedBy={srcDep.replacedBy} />}
         <span style={{ color: "var(--tx-6)" }}> ↔ </span>
-        <span style={{ color: DOMAINS[tgtTable?.domain]?.color }}>
-          {tgtId}
-        </span>
+        <span style={{ color: tgtDep ? "#f59e0b" : DOMAINS[tgtTable?.domain]?.color }}>{tgtId}</span>
+        {tgtDep && <DeprecatedBadge replacedBy={tgtDep.replacedBy} />}
       </div>
       <div style={{ fontSize: 11, color: "#00d4ff88", marginBottom: 5 }}>
         {hoveredEdge.cols.join(", ")}

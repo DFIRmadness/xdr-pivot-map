@@ -232,41 +232,53 @@ export default function PivotGraph({
 
           {/* Edges */}
           <g>
-            {ALL_EDGES.map((edge, i) => (
-              <g key={i}>
-                <line ref={el => edgeRefs.current[i] = el}
-                  stroke="var(--edge)" strokeWidth="2" strokeLinecap="round"
-                  style={{ transition: "stroke 0.2s, opacity 0.2s", pointerEvents: "none" }}
-                />
-                <line ref={el => edgeHitRefs.current[i] = el}
-                  stroke="transparent" strokeWidth="16" strokeLinecap="round"
-                  style={{ cursor: "pointer" }}
-                  onMouseEnter={() => { const el = edgeRefs.current[i]; if (el) { el.setAttribute("stroke", "var(--tx-3)"); el.setAttribute("stroke-width", "3.5"); } onEdgeHover(edge); }}
-                  onMouseLeave={() => {
-                    const el = edgeRefs.current[i];
-                    if (el) {
-                      const key = [edge.source.id || edge.source, edge.target.id || edge.target].sort().join("||");
-                      const isActive = !activeEdgePairs || activeEdgePairs.has(key);
-                      const edgeDim = isDark ? "#363a62" : "#a8b0d0";
-                      el.setAttribute("stroke", isActive && activeEdgePairs ? (activeUC ? activeUC.color + "99" : "#00d4ff88") : edgeDim);
-                      el.setAttribute("stroke-width", isActive && activeEdgePairs ? "2.5" : "2");
-                    }
-                    onEdgeHover(null);
-                  }}
-                />
-              </g>
-            ))}
+            {ALL_EDGES.map((edge, i) => {
+              const srcId = edge.source.id || edge.source;
+              const tgtId = edge.target.id || edge.target;
+              const edgeKey = [srcId, tgtId].sort().join("||");
+              const isEdgeActive = !activeEdgePairs || activeEdgePairs.has(edgeKey);
+              return (
+                <g key={i}>
+                  <line ref={el => edgeRefs.current[i] = el}
+                    stroke="var(--edge)" strokeWidth="2" strokeLinecap="round"
+                    style={{ transition: "stroke 0.2s, opacity 0.2s", pointerEvents: "none" }}
+                  />
+                  <line ref={el => edgeHitRefs.current[i] = el}
+                    stroke="transparent" strokeWidth="28" strokeLinecap="round"
+                    style={{
+                      cursor: isEdgeActive ? "pointer" : "default",
+                      pointerEvents: isEdgeActive ? "auto" : "none",
+                    }}
+                    onMouseEnter={() => {
+                      const el = edgeRefs.current[i];
+                      if (el) { el.setAttribute("stroke", "var(--tx-3)"); el.setAttribute("stroke-width", "3.5"); }
+                      onEdgeHover(edge);
+                    }}
+                    onMouseLeave={() => {
+                      const el = edgeRefs.current[i];
+                      if (el) {
+                        const edgeDim = isDark ? "#363a62" : "#a8b0d0";
+                        el.setAttribute("stroke", isEdgeActive && activeEdgePairs ? (activeUC ? activeUC.color + "99" : "#00d4ff88") : edgeDim);
+                        el.setAttribute("stroke-width", isEdgeActive && activeEdgePairs ? "2.5" : "2");
+                      }
+                      onEdgeHover(null);
+                    }}
+                  />
+                </g>
+              );
+            })}
           </g>
 
           {/* Node circles */}
           <g>
             {TABLES.map(table => {
               const col = DOMAINS[table.domain].color;
+              const isNodeActive = !activeTableIds || activeTableIds.has(table.id);
               return (
                 <g key={table.id} ref={el => nodeRefs.current[table.id] = el}
                   style={{ cursor: "grab" }}
-                  onMouseEnter={() => onNodeHover(table.id)}
-                  onMouseLeave={() => onNodeHover(null)}
+                  onMouseEnter={() => { if (isNodeActive) onNodeHover(table.id); }}
+                  onMouseLeave={() => { if (isNodeActive) onNodeHover(null); }}
                 >
                   <circle r={22} fill={col + "22"} stroke={col} strokeWidth="1.5" />
                 </g>
