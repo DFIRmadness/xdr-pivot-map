@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { TACTICS, TECHNIQUES } from "../data/mitreAttack.js";
+import { CLOUD_TECHNIQUES } from "../data/mitreAttackCloud.js";
 import { TABLES } from "../data/tables.js";
 import { DOMAINS } from "../data/domains.js";
 import { COLUMN_INFO } from "../data/columns.js";
@@ -21,6 +22,28 @@ export default function MitreCrosswalk() {
   const [expandedKql, setExpandedKql] = useState(null); // "techId:mappingIndex"
   const [isDark, setIsDark] = useState(true);
   const [hoveredCol, setHoveredCol] = useState(null);
+  const [matrixView, setMatrixView] = useState("enterprise"); // "enterprise" | "cloud" | "blended"
+
+  const activeTechniques = useMemo(() => {
+    if (matrixView === "enterprise") return TECHNIQUES;
+    if (matrixView === "cloud") return CLOUD_TECHNIQUES;
+    // Blended: merge by technique ID, deduplicate mappings
+    const map = new Map();
+    [...TECHNIQUES, ...CLOUD_TECHNIQUES].forEach(t => {
+      if (!map.has(t.id)) {
+        map.set(t.id, { ...t, _matrix: t.matrix ?? "enterprise" });
+      } else {
+        const existing = map.get(t.id);
+        map.set(t.id, {
+          ...existing,
+          tacticIds: [...new Set([...existing.tacticIds, ...t.tacticIds])],
+          xdrMappings: [...existing.xdrMappings, ...t.xdrMappings],
+          _matrix: "both",
+        });
+      }
+    });
+    return Array.from(map.values());
+  }, [matrixView]);
 
   useEffect(() => {
     const theme = localStorage.getItem("theme") || "dark";
@@ -37,7 +60,7 @@ export default function MitreCrosswalk() {
 
   const tactic = TACTICS.find(t => t.id === selectedTactic) ?? null;
   const techniques = tactic
-    ? TECHNIQUES.filter(t => t.tacticIds.includes(tactic.id))
+    ? activeTechniques.filter(t => t.tacticIds.includes(tactic.id))
     : [];
 
   function toggleTechnique(id) {
@@ -93,9 +116,38 @@ export default function MitreCrosswalk() {
           <div style={{ fontSize: 11, letterSpacing: "0.2em", color: "var(--tx-4)", marginBottom: 6, textTransform: "uppercase" }}>
             MITRE ATT&amp;CK
           </div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: "var(--tx-1)", lineHeight: 1.3 }}>
-            Enterprise<br/>Tactics
+          <div style={{ fontSize: 16, fontWeight: 700, color: "var(--tx-1)", lineHeight: 1.3, marginBottom: 12 }}>
+            {matrixView === "enterprise" ? "Enterprise" : matrixView === "cloud" ? "Cloud" : "Blended"}<br/>Tactics
           </div>
+
+          {/* Matrix toggle */}
+          <div style={{
+            display: "flex", borderRadius: 3, overflow: "hidden",
+            border: "1px solid var(--bd-2)", fontSize: 10, letterSpacing: "0.08em",
+          }}>
+            {[
+              { key: "enterprise", label: "ENTERPRISE" },
+              { key: "cloud",      label: "CLOUD" },
+              { key: "blended",    label: "BLENDED" },
+            ].map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => { setMatrixView(key); setSelectedTactic(null); setExpandedTechnique(null); setExpandedKql(null); }}
+                style={{
+                  flex: 1, border: "none", padding: "5px 0",
+                  cursor: "pointer", fontFamily: "inherit", fontSize: 10, letterSpacing: "0.07em",
+                  background: matrixView === key ? "#ff475722" : "transparent",
+                  color: matrixView === key ? "#ff4757" : "var(--tx-4)",
+                  borderRight: key !== "blended" ? "1px solid var(--bd-2)" : "none",
+                  fontWeight: matrixView === key ? 700 : 400,
+                  transition: "all 0.15s",
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
           <div style={{ fontSize: 11, color: "var(--tx-4)", marginTop: 10, letterSpacing: "0.06em" }}>
             Select a tactic to browse techniques
           </div>
@@ -105,7 +157,8 @@ export default function MitreCrosswalk() {
         <div style={{ flex: 1, overflowY: "auto", padding: "6px 0" }}>
           {TACTICS.map(t => {
             const isSelected = selectedTactic === t.id;
-            const count = TECHNIQUES.filter(te => te.tacticIds.includes(t.id)).length;
+            const count = activeTechniques.filter(te => te.tacticIds.includes(t.id)).length;
+            if (count === 0) return null;
             return (
               <button
                 key={t.id}
@@ -141,7 +194,7 @@ export default function MitreCrosswalk() {
         {/* Footer */}
         <div style={{ padding: "12px 18px", borderTop: "1px solid var(--bd-1)" }}>
           <div style={{ fontSize: 10, color: "var(--tx-5)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
-            ATT&amp;CK v15 · Enterprise
+            ATT&amp;CK v15 · {matrixView === "enterprise" ? "Enterprise" : matrixView === "cloud" ? "Cloud (IaaS/SaaS/IdP)" : "Enterprise + Cloud"}
           </div>
         </div>
       </div>
@@ -213,15 +266,28 @@ export default function MitreCrosswalk() {
                       }}
                     >
                       {/* ID badge */}
-                      <div style={{
-                        fontSize: 10, fontWeight: 700, flexShrink: 0, marginTop: 2,
-                        padding: "2px 6px", borderRadius: 2,
-                        background: isOpen ? tactic.color + "22" : "var(--bg-3)",
-                        border: `1px solid ${isOpen ? tactic.color + "55" : "var(--bd-2)"}`,
-                        color: isOpen ? tactic.color : "var(--tx-4)",
-                        letterSpacing: "0.06em",
-                      }}>
-                        {tech.id}
+                      <div style={{ flexShrink: 0, marginTop: 2, display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
+                        <div style={{
+                          fontSize: 10, fontWeight: 700,
+                          padding: "2px 6px", borderRadius: 2,
+                          background: isOpen ? tactic.color + "22" : "var(--bg-3)",
+                          border: `1px solid ${isOpen ? tactic.color + "55" : "var(--bd-2)"}`,
+                          color: isOpen ? tactic.color : "var(--tx-4)",
+                          letterSpacing: "0.06em",
+                        }}>
+                          {tech.id}
+                        </div>
+                        {matrixView === "blended" && tech._matrix && (
+                          <div style={{
+                            fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 2,
+                            letterSpacing: "0.06em",
+                            background: tech._matrix === "cloud" ? "#00d4ff18" : tech._matrix === "both" ? "#a855f718" : "#ffb34718",
+                            border: `1px solid ${tech._matrix === "cloud" ? "#00d4ff55" : tech._matrix === "both" ? "#a855f755" : "#ffb34755"}`,
+                            color: tech._matrix === "cloud" ? "#00d4ff" : tech._matrix === "both" ? "#a855f7" : "#ffb347",
+                          }}>
+                            {tech._matrix === "cloud" ? "CLOUD" : tech._matrix === "both" ? "E+C" : "ENT"}
+                          </div>
+                        )}
                       </div>
 
                       <div style={{ flex: 1, minWidth: 0 }}>

@@ -1,3 +1,5 @@
+import { PIVOT_EDGES } from "./pivots.js";
+
 export const USE_CASES = [
   {
     id: "phishing",
@@ -453,7 +455,7 @@ EntraIdSignInEvents
       { from: "DeviceLogonEvents",       to: "DeviceProcessEvents",     col: "DeviceId + LogonId" },
       { from: "DeviceProcessEvents",     to: "DeviceNetworkEvents",     col: "InitiatingProcessId" },
       { from: "DeviceNetworkEvents",     to: "DeviceNetworkInfo",       col: "RemoteIP → IPAddresses" },
-      { from: "DeviceNetworkEvents",     to: "DeviceLogonEvents",       col: "RemoteIP → DeviceName" },
+      { from: "DeviceNetworkInfo",       to: "DeviceLogonEvents",       col: "DeviceName" },
       { from: "DeviceProcessEvents",     to: "DeviceFileEvents",        col: "InitiatingProcessId" },
       { from: "DeviceFileEvents",        to: "DeviceRegistryEvents",    col: "DeviceId" },
       { from: "AlertInfo",               to: "AlertEvidence",           col: "AlertId" },
@@ -597,6 +599,7 @@ EntraIdSignInEvents
       { from: "DeviceProcessEvents",     to: "DeviceFileEvents",          col: "InitiatingProcessId" },
       { from: "DeviceFileEvents",        to: "DeviceFileCertificateInfo", col: "SHA256" },
       { from: "DeviceFileCertificateInfo", to: "DeviceImageLoadEvents",  col: "SHA256" },
+      { from: "DeviceFileEvents",        to: "DeviceImageLoadEvents",    col: "FileName | FolderPath" },
       { from: "DeviceEvents",            to: "DeviceProcessEvents",       col: "InitiatingProcessId" },
       { from: "DeviceProcessEvents",     to: "DeviceLogonEvents",         col: "DeviceId + AccountName" },
       { from: "DeviceLogonEvents",       to: "IdentityDirectoryEvents",   col: "AccountUpn" },
@@ -1018,10 +1021,10 @@ EntraIdSignInEvents
       },
     ],
     links: [
-      { from: "CloudAppEvents",      to: "DeviceNetworkEvents", col: "AccountUpn → DeviceId" },
+      { from: "CloudAppEvents",      to: "DeviceNetworkEvents", col: "AccountUpn → InitiatingProcessAccountUpn" },
       { from: "DeviceNetworkEvents", to: "DeviceProcessEvents", col: "InitiatingProcessId" },
       { from: "DeviceProcessEvents", to: "DeviceFileEvents",    col: "InitiatingProcessId" },
-      { from: "DeviceNetworkEvents", to: "EmailEvents",         col: "AccountName → SenderFromAddress" },
+      { from: "DeviceNetworkEvents", to: "EmailEvents",         col: "InitiatingProcessAccountUpn → SenderFromAddress" },
       { from: "CloudAppEvents",      to: "DataSecurityEvents",  col: "AccountUpn" },
       { from: "AlertInfo",           to: "AlertEvidence",       col: "AlertId" },
       { from: "AlertEvidence",       to: "CloudAppEvents",      col: "AccountUpn" },
@@ -1288,28 +1291,422 @@ EntraIdSignInEvents
       { from: "DataSecurityEvents",  to: "CloudAppEvents",     col: "AccountUpn" },
       { from: "CloudAppEvents",      to: "IdentityLogonEvents",col: "AccountUpn" },
       { from: "IdentityLogonEvents", to: "EntraIdSignInEvents",col: "AccountUpn" },
-      { from: "CloudAppEvents",      to: "DeviceFileEvents",   col: "AccountUpn → DeviceId" },
+      { from: "CloudAppEvents",      to: "DeviceFileEvents",   col: "AccountUpn → InitiatingProcessAccountUpn" },
       { from: "DeviceFileEvents",    to: "DeviceProcessEvents",col: "InitiatingProcessId" },
       { from: "CloudAppEvents",      to: "EmailEvents",        col: "AccountUpn" },
       { from: "AlertInfo",           to: "AlertEvidence",      col: "AlertId" },
       { from: "AlertEvidence",       to: "CloudAppEvents",     col: "AccountUpn" },
     ],
   },
+  {
+    id: "becFraud",
+    name: "AiTM → BEC Fraud",
+    icon: "💸",
+    tactic: "Initial Access > Impact",
+    color: "#f97316",
+    desc: "AiTM proxy steals the session cookie, attacker creates inbox rules, reads pending invoices, then impersonates the vendor to redirect a wire transfer.",
+    steps: [
+      {
+        table: "EmailEvents",
+        action: "Find the AiTM phishing lure — finance-themed subjects or Microsoft auth prompts from non-Microsoft domains",
+        kql: `EmailEvents
+| where Timestamp > ago(14d)
+| where DeliveryAction in ("Delivered","DeliveredAsSpam")
+| where Subject has_any (
+    "sign-in","verify","MFA","invoice","payment",
+    "authentication","action required","review document")
+  and SenderFromDomain !endswith "microsoft.com"
+| project Timestamp, SenderFromAddress, SenderFromDomain,
+          RecipientEmailAddress, Subject,
+          DeliveryAction, ThreatTypes, NetworkMessageId`,
+      },
+      {
+        table: "UrlClickEvents",
+        action: "Confirm click through the AiTM proxy — UrlChain shows the relay redirect before the real Microsoft login",
+        kql: `UrlClickEvents
+| where Timestamp > ago(14d)
+| where NetworkMessageId == "<NetworkMessageId from EmailEvents>"
+    or Url has "<proxy_domain from EmailUrlInfo>"
+| project Timestamp, AccountUpn, Url, UrlChain,
+          ActionType, IsClickedThrough, IPAddress`,
+      },
+      {
+        table: "EntraIdSignInEvents",
+        action: "Detect the session hijack — two successful sign-ins from different IPs in a short window (victim IP vs attacker IP)",
+        kql: `EntraIdSignInEvents
+| where Timestamp > ago(14d)
+| where AccountUpn =~ "<AccountUpn from UrlClickEvents>"
+    and ErrorCode == 0
+| summarize SignIns = count(),
+            IPs = make_set(IPAddress),
+            Countries = make_set(Country)
+    by AccountUpn, bin(Timestamp, 1h)
+| where array_length(IPs) > 1
+---
+EntraIdSignInEvents
+| where Timestamp > ago(14d)
+| where AccountUpn =~ "<AccountUpn>"
+    and IsManaged == false and ErrorCode == 0
+| project Timestamp, AccountUpn, IPAddress, Country,
+          Application, RiskLevelDuringSignIn, AccountObjectId`,
+      },
+      {
+        table: "CloudAppEvents",
+        action: "Attacker creates inbox rules to suppress security notifications and copy all mail to an external address — ForwardTo and DeleteMessage are the critical fields",
+        kql: `CloudAppEvents
+| where Timestamp > ago(14d)
+| where AccountObjectId == "<AccountObjectId from EntraIdSignInEvents>"
+| where ActionType in (
+    "New-InboxRule","Set-InboxRule",
+    "Set-Mailbox","Add-MailboxPermission",
+    "New-TransportRule")
+| extend RuleDetails = parse_json(RawEventData)
+| project Timestamp, AccountUpn, ActionType,
+          IPAddress, RuleDetails, RawEventData`,
+      },
+      {
+        table: "GraphApiAuditEvents",
+        action: "Attacker reads the inbox via Graph API to find in-flight invoices and identify finance approvers — MailboxItem.Read operations from the attacker's IP",
+        kql: `GraphApiAuditEvents
+| where Timestamp > ago(14d)
+| where AccountId == "<AccountId from CloudAppEvents>"
+| where ActionType has_any (
+    "Mail.Read","MailboxItem.Read",
+    "messages","mailFolders","calendarView")
+| project Timestamp, AccountUpn, ActionType,
+          IPAddress, TargetResources, AdditionalFields`,
+      },
+      {
+        table: "EmailEvents",
+        action: "Find the BEC fraud email sent from the compromised mailbox or lookalike domain requesting fraudulent wire transfer or payment redirect",
+        kql: `EmailEvents
+| where Timestamp > ago(14d)
+| where SenderFromAddress =~ "<compromised_account>"
+    and EmailDirection == "Outbound"
+| where Subject has_any (
+    "invoice","payment","wire","bank account",
+    "transfer","urgent","updated banking","remittance")
+| project Timestamp, SenderFromAddress, RecipientEmailAddress,
+          Subject, DeliveryAction, NetworkMessageId
+| sort by Timestamp desc`,
+      },
+      {
+        table: "AlertInfo",
+        action: "Correlate MDO/MDCA/MDI alerts — impossible travel, inbox rule creation, anomalous send volume, and BEC-pattern detections",
+        kql: `AlertInfo
+| where Timestamp > ago(14d)
+| where Title has_any (
+    "AiTM","impossible travel","token theft",
+    "inbox rule","mail forwarding","BEC",
+    "suspicious sign-in","anomalous")
+    or Category in ("InitialAccess","Persistence","Collection","Exfiltration")
+| project Timestamp, AlertId, Title, Severity,
+          Category, AttackTechniques, ServiceSource`,
+      },
+      {
+        table: "AlertEvidence",
+        action: "Extract confirmed IOCs — attacker IP, compromised UPN, inbox rule name — to scope blast radius and support account recovery",
+        kql: `AlertEvidence
+| where Timestamp > ago(14d)
+| where AlertId == "<AlertId from AlertInfo>"
+| where EntityType in ("User","Ip","Mailbox","CloudApplication")
+| project Timestamp, AlertId, EntityType, EvidenceRole,
+          AccountUpn, AccountObjectId, RemoteIP, AdditionalFields`,
+      },
+    ],
+    links: [
+      { from: "EmailEvents",         to: "UrlClickEvents",       col: "NetworkMessageId" },
+      { from: "UrlClickEvents",      to: "EntraIdSignInEvents",  col: "AccountUpn" },
+      { from: "EntraIdSignInEvents", to: "CloudAppEvents",       col: "AccountObjectId" },
+      { from: "CloudAppEvents",      to: "GraphApiAuditEvents",  col: "AccountId" },
+      { from: "CloudAppEvents",      to: "EmailEvents",          col: "AccountUpn → SenderFromAddress" },
+      { from: "AlertInfo",           to: "AlertEvidence",        col: "AlertId" },
+      { from: "AlertEvidence",       to: "EntraIdSignInEvents",  col: "AccountUpn" },
+    ],
+  },
+  {
+    id: "infoStealer",
+    name: "Info Stealer Malware",
+    icon: "🕵️",
+    tactic: "Collection > Exfiltration",
+    color: "#a78bfa",
+    desc: "Malvertising or fake software drops Lumma/Redline/StealC. The stealer harvests browser credentials, session cookies, and crypto wallets then exfils via Telegram Bot API or Discord webhook.",
+    steps: [
+      {
+        table: "DeviceProcessEvents",
+        action: "Find the dropper or initial execution — fake installer from Temp/Downloads, browser-spawned LOLBin, or renamed executable with suspicious parent",
+        kql: `DeviceProcessEvents
+| where Timestamp > ago(7d)
+| where FolderPath has_any (@"\Temp\",@"\AppData\Local\",@"\Downloads\")
+    or InitiatingProcessFileName in~ (
+        "chrome.exe","msedge.exe","firefox.exe",
+        "explorer.exe","msiexec.exe")
+| where FileName in~ (
+    "powershell.exe","cmd.exe","mshta.exe",
+    "wscript.exe","cscript.exe","regsvr32.exe","rundll32.exe")
+    or SHA256 == "<known_stealer_hash>"
+| project Timestamp, DeviceName, FileName, ProcessCommandLine,
+          SHA256, FolderPath, InitiatingProcessFileName,
+          InitiatingProcessCommandLine, AccountName`,
+      },
+      {
+        table: "DeviceFileEvents",
+        action: "Identify browser credential database reads by a non-browser process — Login Data, Local State, or Firefox profile access is the stealer fingerprint",
+        kql: `DeviceFileEvents
+| where Timestamp > ago(7d)
+| where (ActionType == "FileCreated"
+    and FolderPath has_any (@"\Temp\",@"\AppData\",@"\ProgramData\"))
+    or (FolderPath has_any (
+        @"Chrome\User Data\Default\Login Data",
+        @"Chrome\User Data\Local State",
+        @"Edge\User Data\Default\Login Data",
+        @"Mozilla\Firefox\Profiles")
+    and InitiatingProcessFileName !in~ (
+        "chrome.exe","msedge.exe","firefox.exe"))
+| project Timestamp, DeviceName, ActionType, FileName,
+          FolderPath, SHA256, InitiatingProcessFileName,
+          InitiatingProcessCommandLine`,
+      },
+      {
+        table: "DeviceEvents",
+        action: "DPAPI decryption by a non-browser process confirms the stealer is unwrapping the browser master key to decrypt stored credentials and cookies",
+        kql: `DeviceEvents
+| where Timestamp > ago(7d)
+| where ActionType in (
+    "DpapiAccessed","OpenProcessApiCall")
+| where InitiatingProcessFileName !in~ (
+    "chrome.exe","msedge.exe","firefox.exe",
+    "explorer.exe","lsass.exe","svchost.exe")
+| project Timestamp, DeviceName, ActionType,
+          InitiatingProcessFileName, InitiatingProcessId,
+          InitiatingProcessCommandLine, FileName, AccountName`,
+      },
+      {
+        table: "DeviceRegistryEvents",
+        action: "Check Run key persistence — stealers often install a dropper or updater to persist between credential harvesting runs",
+        kql: `DeviceRegistryEvents
+| where Timestamp > ago(7d)
+| where RegistryKey has_any (
+    @"Software\Microsoft\Windows\CurrentVersion\Run",
+    @"Software\Microsoft\Windows\CurrentVersion\RunOnce",
+    @"SOFTWARE\Classes\CLSID")
+| where ActionType in ("RegistryValueSet","RegistryKeyCreated")
+| where InitiatingProcessFileName !in~ (
+    "msiexec.exe","svchost.exe","explorer.exe","system")
+| project Timestamp, DeviceName, RegistryKey,
+          RegistryValueName, RegistryValueData,
+          InitiatingProcessFileName, InitiatingProcessId`,
+      },
+      {
+        table: "DeviceNetworkEvents",
+        action: "Catch the exfil — stealers POST credential logs to Telegram Bot API, Discord webhooks, or a C2 panel. Non-browser processes calling these endpoints is a confirmed steal.",
+        kql: `DeviceNetworkEvents
+| where Timestamp > ago(7d)
+| where RemoteUrl has_any (
+    "api.telegram.org",
+    "discord.com/api/webhooks","t.me")
+    or (RemoteIPType == "Public"
+        and InitiatingProcessFileName !in~ (
+            "chrome.exe","msedge.exe","firefox.exe",
+            "telegram.exe","discord.exe","slack.exe"))
+| project Timestamp, DeviceName, RemoteIP, RemoteUrl,
+          RemotePort, InitiatingProcessFileName,
+          InitiatingProcessId, SentBytes`,
+      },
+      {
+        table: "AlertInfo",
+        action: "Check MDE alerts on browser credential theft, suspicious DPAPI access, Telegram/Discord C2, and known stealer family detections",
+        kql: `AlertInfo
+| where Timestamp > ago(7d)
+| where Category in ("Malware","SuspiciousActivity","CredentialAccess")
+    or Title has_any (
+        "stealer","credential","browser data","DPAPI",
+        "Lumma","Redline","StealC","Vidar",
+        "Telegram","Discord C2","infostealer")
+| project Timestamp, AlertId, Title, Severity,
+          Category, AttackTechniques, ServiceSource`,
+      },
+      {
+        table: "AlertEvidence",
+        action: "Extract the stealer binary hash — SHA256 lets you scope all devices where this payload landed across the entire environment",
+        kql: `AlertEvidence
+| where Timestamp > ago(7d)
+| where AlertId == "<AlertId from AlertInfo>"
+| where EntityType in ("File","Process","Ip","Machine")
+| project Timestamp, AlertId, EntityType, EvidenceRole,
+          FileName, SHA256, RemoteIP, DeviceName, ProcessCommandLine`,
+      },
+    ],
+    links: [
+      { from: "DeviceProcessEvents",  to: "DeviceFileEvents",      col: "InitiatingProcessId" },
+      { from: "DeviceFileEvents",     to: "DeviceEvents",          col: "DeviceId + InitiatingProcessId" },
+      { from: "DeviceEvents",         to: "DeviceProcessEvents",   col: "InitiatingProcessId" },
+      { from: "DeviceProcessEvents",  to: "DeviceRegistryEvents",  col: "InitiatingProcessId" },
+      { from: "DeviceProcessEvents",  to: "DeviceNetworkEvents",   col: "InitiatingProcessId" },
+      { from: "AlertInfo",            to: "AlertEvidence",         col: "AlertId" },
+      { from: "AlertEvidence",        to: "DeviceFileEvents",      col: "SHA256" },
+    ],
+  },
+  {
+    id: "clickFix",
+    name: "ClickFix Social Eng.",
+    icon: "📋",
+    tactic: "Execution",
+    color: "#22d3ee",
+    desc: "Fake CAPTCHA or browser-error dialog silently writes an encoded PowerShell cradle to the clipboard, then instructs the user to paste it into the Windows Run dialog — no attachment, no macro.",
+    steps: [
+      {
+        table: "EmailEvents",
+        action: "Find the phishing email linking to a ClickFix page — fake CAPTCHAs, document viewer errors, or browser update prompts",
+        kql: `EmailEvents
+| where Timestamp > ago(7d)
+| where DeliveryAction in ("Delivered","DeliveredAsSpam")
+| where Subject has_any (
+    "verify","captcha","browser","document",
+    "access","update","error","fix","confirm")
+  and SenderFromDomain !endswith "yourdomain.com"
+| project Timestamp, SenderFromAddress, SenderFromDomain,
+          RecipientEmailAddress, Subject, ThreatTypes, NetworkMessageId`,
+      },
+      {
+        table: "DeviceNetworkEvents",
+        action: "Identify the browser visiting the ClickFix landing page — the malicious JavaScript will silently overwrite the clipboard with a PowerShell cradle",
+        kql: `DeviceNetworkEvents
+| where Timestamp > ago(7d)
+| where InitiatingProcessFileName in~ (
+    "chrome.exe","msedge.exe","firefox.exe","iexplore.exe")
+| where RemoteUrl has_any (
+    "captcha","verify","browser-fix","repair",
+    "windows-update","document-view","access-denied")
+    and RemoteIPType == "Public"
+| project Timestamp, DeviceName, RemoteUrl, RemoteIP,
+          RemotePort, InitiatingProcessFileName`,
+      },
+      {
+        table: "DeviceEvents",
+        action: "Clipboard write from the browser process — this is the ClickFix fingerprint before any command executes",
+        kql: `DeviceEvents
+| where Timestamp > ago(7d)
+| where ActionType in ("SetClipboardText","ProcessMemoryAccess")
+    and InitiatingProcessFileName in~ (
+        "chrome.exe","msedge.exe","firefox.exe")
+| project Timestamp, DeviceName, ActionType,
+          InitiatingProcessFileName, InitiatingProcessId,
+          AdditionalFields`,
+      },
+      {
+        table: "DeviceProcessEvents",
+        action: "The ClickFix tell: cmd.exe or PowerShell parented by explorer.exe with an encoded command — this is the user pasting from Windows+R. No Office, no macro, no download.",
+        kql: `DeviceProcessEvents
+| where Timestamp > ago(7d)
+| where FileName in~ (
+    "powershell.exe","cmd.exe","mshta.exe","certutil.exe")
+| where InitiatingProcessFileName in~ (
+    "explorer.exe","userinit.exe","WinLogonUI.exe")
+| where ProcessCommandLine has_any (
+    "-EncodedCommand","-enc ",
+    "IEX","Invoke-Expression","DownloadString",
+    "WebClient","certutil","bitsadmin","mshta http")
+| project Timestamp, DeviceName, FileName, ProcessCommandLine,
+          InitiatingProcessFileName, SHA256, AccountName`,
+      },
+      {
+        table: "DeviceFileEvents",
+        action: "Payload written by the PowerShell cradle — executables or scripts in Temp/AppData immediately after the Run dialog command",
+        kql: `DeviceFileEvents
+| where Timestamp > ago(7d)
+| where InitiatingProcessFileName in~ (
+    "powershell.exe","cmd.exe","mshta.exe","certutil.exe")
+| where ActionType == "FileCreated"
+| where FolderPath has_any (
+    @"\Temp\",@"\AppData\",@"\ProgramData\",@"\Windows\Temp\")
+    or FileName has_any (".exe",".dll",".ps1",".bat",".vbs")
+| project Timestamp, DeviceName, FileName, FolderPath,
+          SHA256, InitiatingProcessFileName, InitiatingProcessCommandLine`,
+      },
+      {
+        table: "DeviceRegistryEvents",
+        action: "Persistence installed by the dropped payload — ClickFix commonly delivers AsyncRAT, DarkGate, or Lumma Stealer, all of which write Run key persistence",
+        kql: `DeviceRegistryEvents
+| where Timestamp > ago(7d)
+| where RegistryKey has_any (
+    @"Software\Microsoft\Windows\CurrentVersion\Run",
+    @"Software\Microsoft\Windows NT\CurrentVersion\Winlogon",
+    @"SOFTWARE\Classes\CLSID")
+| where ActionType in ("RegistryValueSet","RegistryKeyCreated")
+| where InitiatingProcessFileName !in~ (
+    "msiexec.exe","svchost.exe","explorer.exe")
+| project Timestamp, DeviceName, RegistryKey,
+          RegistryValueName, RegistryValueData,
+          InitiatingProcessFileName`,
+      },
+      {
+        table: "AlertInfo",
+        action: "Correlate MDE alerts on explorer-parented PowerShell, encoded commands, LOLBin abuse, and ClickFix-specific detections",
+        kql: `AlertInfo
+| where Timestamp > ago(7d)
+| where Category in ("Execution","InitialAccess","Persistence")
+    or Title has_any (
+        "ClickFix","encoded command","suspicious PowerShell",
+        "mshta","certutil download","LOLBin",
+        "clipboard","download cradle","suspicious process")
+| project Timestamp, AlertId, Title, Severity,
+          Category, AttackTechniques, ServiceSource`,
+      },
+      {
+        table: "AlertEvidence",
+        action: "Extract the payload hash and the LOLBin process — SHA256 scopes all devices hit by the same campaign payload",
+        kql: `AlertEvidence
+| where Timestamp > ago(7d)
+| where AlertId == "<AlertId from AlertInfo>"
+| where EntityType in ("Process","File","Machine","Ip")
+| project Timestamp, AlertId, EntityType, EvidenceRole,
+          FileName, SHA256, ProcessCommandLine,
+          DeviceName, RemoteIP`,
+      },
+    ],
+    links: [
+      { from: "EmailEvents",          to: "DeviceNetworkEvents",  col: "RecipientEmailAddress → device browsing" },
+      { from: "DeviceNetworkEvents",  to: "DeviceEvents",         col: "DeviceId + InitiatingProcessId" },
+      { from: "DeviceEvents",         to: "DeviceProcessEvents",  col: "InitiatingProcessId" },
+      { from: "DeviceProcessEvents",  to: "DeviceNetworkEvents",  col: "InitiatingProcessId" },
+      { from: "DeviceProcessEvents",  to: "DeviceFileEvents",     col: "InitiatingProcessId" },
+      { from: "DeviceFileEvents",     to: "DeviceRegistryEvents", col: "DeviceId" },
+      { from: "AlertInfo",            to: "AlertEvidence",        col: "AlertId" },
+      { from: "AlertEvidence",        to: "DeviceProcessEvents",  col: "SHA256" },
+    ],
+  },
 ];
 
 export function buildEdges(useCases) {
   const edgeMap = new Map();
+
+  // Seed with comprehensive schema-level pivots (tier comes from here)
+  PIVOT_EDGES.forEach(pivot => {
+    const key = [pivot.source, pivot.target].sort().join("||");
+    edgeMap.set(key, {
+      source: pivot.source,
+      target: pivot.target,
+      cols: [...pivot.cols],
+      useCases: [],
+      tier: pivot.tier,
+    });
+  });
+
+  // Overlay use-case-specific edges (adds useCases tracking; cols merged in)
   useCases.forEach(uc => {
     uc.links.forEach(link => {
       const key = [link.from, link.to].sort().join("||");
       if (!edgeMap.has(key)) {
-        edgeMap.set(key, { source: link.from, target: link.to, cols: [], useCases: [] });
+        // Edge not in PIVOT_EDGES — add with default tier
+        edgeMap.set(key, { source: link.from, target: link.to, cols: [], useCases: [], tier: "mid" });
       }
       const e = edgeMap.get(key);
       if (!e.cols.includes(link.col)) e.cols.push(link.col);
       if (!e.useCases.includes(uc.id)) e.useCases.push(uc.id);
     });
   });
+
   return Array.from(edgeMap.values());
 }
 

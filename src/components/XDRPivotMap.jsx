@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { USE_CASES } from "../data/useCases.js";
+import { USE_CASES, ALL_EDGES } from "../data/useCases.js";
+import { TABLES } from "../data/tables.js";
+import { DOMAINS } from "../data/domains.js";
 import Sidebar from "./Sidebar.jsx";
 import PivotGraph from "./PivotGraph.jsx";
 import StepPanel from "./StepPanel.jsx";
@@ -14,14 +16,55 @@ export default function XDRPivotMap() {
   const [activeStep, setActiveStep] = useState(null);
   const [isDark, setIsDark] = useState(true);
   const [viewMode, setViewMode] = useState("graph");
+  const [selectedDomain, setSelectedDomain] = useState(null);
 
   const activeUC = USE_CASES.find(u => u.id === selectedUseCase) ?? null;
-  const activeTableIds = activeUC
+
+  const ucTableIds = activeUC
     ? new Set(activeUC.links.flatMap(l => [l.from, l.to]))
     : null;
-  const activeEdgePairs = activeUC
-    ? new Set(activeUC.links.map(l => [l.from, l.to].sort().join("||")))
+  const domainTableIds = selectedDomain
+    ? new Set(TABLES.filter(t => t.domain === selectedDomain).map(t => t.id))
     : null;
+
+  // Combine UC + domain filters: intersect when both active, apply whichever is set
+  const activeTableIds = (() => {
+    if (!ucTableIds && !domainTableIds) return null;
+    if (ucTableIds && domainTableIds) {
+      return new Set([...ucTableIds].filter(id => domainTableIds.has(id)));
+    }
+    return ucTableIds ?? domainTableIds;
+  })();
+
+  // Single highlight color for both UC and domain isolation modes
+  const highlightColor = activeUC
+    ? activeUC.color
+    : selectedDomain
+    ? DOMAINS[selectedDomain].color
+    : null;
+
+  const activeEdgePairs = (() => {
+    if (activeUC) {
+      return new Set(activeUC.links.map(l => [l.from, l.to].sort().join("||")));
+    }
+    if (domainTableIds) {
+      // Only highlight edges where both endpoints are in the selected domain
+      return new Set(
+        ALL_EDGES
+          .filter(e => {
+            const src = e.source.id || e.source;
+            const tgt = e.target.id || e.target;
+            return domainTableIds.has(src) && domainTableIds.has(tgt);
+          })
+          .map(e => {
+            const src = e.source.id || e.source;
+            const tgt = e.target.id || e.target;
+            return [src, tgt].sort().join("||");
+          })
+      );
+    }
+    return null;
+  })();
 
   // Read saved theme on mount
   useEffect(() => {
@@ -69,6 +112,8 @@ export default function XDRPivotMap() {
         onSelect={handleSelectUseCase}
         isDark={isDark}
         onToggleTheme={toggleTheme}
+        selectedDomain={selectedDomain}
+        onDomainSelect={d => setSelectedDomain(prev => prev === d ? null : d)}
       />
 
       {/* Graph canvas */}
@@ -95,6 +140,7 @@ export default function XDRPivotMap() {
           isDark={isDark}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
+          highlightColor={highlightColor}
         />
 
         <StepPanel

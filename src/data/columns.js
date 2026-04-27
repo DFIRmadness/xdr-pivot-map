@@ -12,7 +12,7 @@ export const COLUMN_INFO = {
   "AccountUpn": {
     docs: "User Principal Name (UPN) of the account in user@domain.com format, as recorded by the data source. May reflect the on-premises UPN or the cloud UPN depending on the table.",
     plain: "The user's login name in email format. The most consistent cross-table user identifier — works across device, identity, email, and cloud app tables.",
-    dfir: "Your primary identity pivot. An attacker who compromises a single account will leave UPN breadcrumbs across EmailEvents, IdentityLogonEvents, DeviceLogonEvents, EntraIdSignInEvents, CloudAppEvents, and BehaviorInfo. Correlating all of them paints the full picture of what they did after initial access.",
+    dfir: "Your primary identity pivot. An attacker who compromises a single account will leave UPN breadcrumbs across EmailEvents, IdentityLogonEvents, DeviceLogonEvents, EntraIdSignInEvents, CloudAppEvents, CloudAuditEvents, GraphApiAuditEvents, and BehaviorInfo. Correlating all of them paints the full picture of what they did after initial access.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-identitylogonevents-table",
     crossTables: [
       { table: "DeviceProcessEvents" },
@@ -28,6 +28,8 @@ export const COLUMN_INFO = {
       { table: "EntraIdSignInEvents" },
       { table: "AADSignInEventsBeta" },
       { table: "CloudAppEvents" },
+      { table: "CloudAuditEvents" },
+      { table: "GraphApiAuditEvents" },
       { table: "UrlClickEvents" },
       { table: "AlertEvidence" },
       { table: "BehaviorInfo" },
@@ -49,6 +51,7 @@ export const COLUMN_INFO = {
       { table: "EntraIdSignInEvents" },
       { table: "AADSignInEventsBeta" },
       { table: "CloudAppEvents" },
+      { table: "CloudAuditEvents" },
       { table: "GraphApiAuditEvents" },
       { table: "EmailEvents", as: "SenderObjectId" },
       { table: "EmailAttachmentInfo", as: "SenderObjectId" },
@@ -66,6 +69,7 @@ export const COLUMN_INFO = {
     crossTables: [
       { table: "CloudAppEvents" },
       { table: "GraphApiAuditEvents" },
+      { table: "CloudAuditEvents" },
     ],
   },
 
@@ -80,6 +84,7 @@ export const COLUMN_INFO = {
       { table: "DeviceFileEvents" },
       { table: "DeviceRegistryEvents" },
       { table: "DeviceEvents" },
+      { table: "CloudProcessEvents" },
       { table: "IdentityDirectoryEvents" },
     ],
   },
@@ -167,6 +172,8 @@ export const COLUMN_INFO = {
       { table: "EntraIdSignInEvents" },
       { table: "AADSignInEventsBeta" },
       { table: "CloudAppEvents" },
+      { table: "CloudAuditEvents" },
+      { table: "GraphApiAuditEvents" },
       { table: "UrlClickEvents" },
       { table: "DataSecurityEvents" },
       { table: "DeviceLogonEvents", as: "RemoteIP" },
@@ -275,6 +282,7 @@ export const COLUMN_INFO = {
       { table: "DeviceTvmHardwareFirmware" },
       { table: "DeviceTvmBrowserExtensions" },
       { table: "DeviceTvmCertificateInfo" },
+      { table: "CloudProcessEvents" },
       { table: "AlertEvidence" },
       { table: "BehaviorInfo" },
       { table: "BehaviorEntities" },
@@ -296,6 +304,7 @@ export const COLUMN_INFO = {
       { table: "DeviceRegistryEvents" },
       { table: "DeviceLogonEvents" },
       { table: "DeviceEvents" },
+      { table: "CloudProcessEvents" },
       { table: "IdentityLogonEvents" },
       { table: "IdentityQueryEvents" },
       { table: "AlertEvidence" },
@@ -328,6 +337,8 @@ export const COLUMN_INFO = {
       { table: "DeviceFileEvents" },
       { table: "DeviceRegistryEvents" },
       { table: "DeviceEvents" },
+      { table: "DeviceImageLoadEvents" },
+      { table: "CloudProcessEvents" },
     ],
   },
 
@@ -342,6 +353,8 @@ export const COLUMN_INFO = {
       { table: "DeviceFileEvents" },
       { table: "DeviceRegistryEvents" },
       { table: "DeviceEvents" },
+      { table: "DeviceImageLoadEvents" },
+      { table: "CloudProcessEvents" },
     ],
   },
 
@@ -356,6 +369,8 @@ export const COLUMN_INFO = {
       { table: "DeviceFileEvents" },
       { table: "DeviceRegistryEvents" },
       { table: "DeviceEvents" },
+      { table: "DeviceImageLoadEvents" },
+      { table: "CloudProcessEvents" },
     ],
   },
 
@@ -367,6 +382,8 @@ export const COLUMN_INFO = {
     crossTables: [
       { table: "DeviceProcessEvents" },
       { table: "DeviceFileEvents" },
+      { table: "DeviceImageLoadEvents" },
+      { table: "CloudProcessEvents" },
       { table: "EmailAttachmentInfo" },
       { table: "AlertEvidence" },
     ],
@@ -379,6 +396,7 @@ export const COLUMN_INFO = {
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-deviceprocessevents-table",
     crossTables: [
       { table: "DeviceProcessEvents" },
+      { table: "CloudProcessEvents" },
       { table: "AlertEvidence", as: "CommandLine" },
     ],
   },
@@ -391,6 +409,7 @@ export const COLUMN_INFO = {
     crossTables: [
       { table: "DeviceProcessEvents" },
       { table: "DeviceFileEvents" },
+      { table: "DeviceImageLoadEvents" },
       { table: "AlertEvidence" },
     ],
   },
@@ -424,6 +443,7 @@ export const COLUMN_INFO = {
       { table: "CloudAppEvents" },
       { table: "CloudAuditEvents" },
       { table: "CloudProcessEvents" },
+      { table: "GraphApiAuditEvents" },
       { table: "BehaviorInfo" },
       { table: "BehaviorEntities" },
       { table: "DataSecurityEvents" },

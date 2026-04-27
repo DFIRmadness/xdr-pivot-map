@@ -1,7 +1,7 @@
 import { DOMAINS } from "../data/domains.js";
 import { USE_CASES } from "../data/useCases.js";
 
-export default function Sidebar({ selectedUseCase, onSelect, isDark, onToggleTheme }) {
+export default function Sidebar({ selectedUseCase, onSelect, isDark, onToggleTheme, selectedDomain, onDomainSelect }) {
   return (
     <div style={{
       width: 270,
@@ -55,6 +55,67 @@ export default function Sidebar({ selectedUseCase, onSelect, isDark, onToggleThe
         </div>
       </div>
 
+      <div style={{ padding: "10px 18px 10px", borderBottom: "1px solid var(--bd-1)" }}>
+        {/* All categories button */}
+        <button
+          onClick={() => onDomainSelect(null)}
+          style={{
+            width: "100%", marginBottom: 6, padding: "4px 8px",
+            background: !selectedDomain ? "var(--bg-3)" : "transparent",
+            border: !selectedDomain ? "1px solid var(--bd-2)" : "1px solid transparent",
+            borderRadius: 3, cursor: "pointer", fontFamily: "inherit",
+            display: "flex", alignItems: "center", gap: 7,
+            transition: "all 0.15s",
+          }}
+          onMouseEnter={e => { if (selectedDomain) e.currentTarget.style.background = "var(--bg-3)"; }}
+          onMouseLeave={e => { if (selectedDomain) e.currentTarget.style.background = "transparent"; }}
+        >
+          <div style={{
+            width: 7, height: 7, borderRadius: "50%", flexShrink: 0,
+            background: !selectedDomain ? "var(--tx-2)" : "var(--tx-5)",
+          }} />
+          <span style={{
+            fontSize: 11,
+            color: !selectedDomain ? "var(--tx-1)" : "var(--tx-5)",
+            fontWeight: !selectedDomain ? 700 : 400,
+            letterSpacing: "0.04em",
+          }}>All Categories</span>
+        </button>
+
+        {Object.entries(DOMAINS).map(([key, { label, color }]) => {
+          const isActive = selectedDomain === key;
+          return (
+            <button
+              key={key}
+              onClick={() => onDomainSelect(key)}
+              style={{
+                width: "100%", padding: "3px 8px",
+                background: isActive ? color + "18" : "transparent",
+                border: isActive ? `1px solid ${color}44` : "1px solid transparent",
+                borderRadius: 3, cursor: "pointer", fontFamily: "inherit",
+                display: "flex", alignItems: "center", gap: 7, marginBottom: 2,
+                transition: "all 0.15s",
+              }}
+              onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "var(--bg-3)"; }}
+              onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+            >
+              <div style={{
+                width: isActive ? 9 : 7, height: isActive ? 9 : 7,
+                borderRadius: "50%", background: color, flexShrink: 0,
+                boxShadow: isActive ? `0 0 6px ${color}99` : "none",
+                transition: "all 0.15s",
+              }} />
+              <span style={{
+                fontSize: 11,
+                color: isActive ? color : "var(--tx-4)",
+                fontWeight: isActive ? 700 : 400,
+                letterSpacing: "0.04em",
+              }}>{label}</span>
+            </button>
+          );
+        })}
+      </div>
+
       <div style={{ flex: 1, overflowY: "auto", padding: "6px 0" }}>
         {USE_CASES.map(uc => {
           const isSelected = selectedUseCase === uc.id;
@@ -101,14 +162,6 @@ export default function Sidebar({ selectedUseCase, onSelect, isDark, onToggleThe
         })}
       </div>
 
-      <div style={{ padding: "14px 18px", borderTop: "1px solid var(--bd-1)" }}>
-        {Object.entries(DOMAINS).map(([key, { label, color }]) => (
-          <div key={key} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
-            <div style={{ width: 7, height: 7, borderRadius: "50%", background: color, flexShrink: 0 }} />
-            <span style={{ fontSize: 11, color: "var(--tx-4)" }}>{label}</span>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

@@ -33,7 +33,7 @@ function buildDef(useCase, isDark) {
   // Edges — quote labels so slashes, arrows, and plus signs render correctly
   useCase.links.forEach(link => {
     const label = link.col.replace(/"/g, "'");
-    lines.push(`  ${link.from} -->|"${label}"| ${link.to}`);
+    lines.push(`  ${link.from} <-->|"${label}"| ${link.to}`);
   });
 
   lines.push(""); // blank line before class assignments

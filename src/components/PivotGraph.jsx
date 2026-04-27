@@ -17,6 +17,7 @@ export default function PivotGraph({
   isDark,
   viewMode,
   onViewModeChange,
+  highlightColor,
 }) {
   const simRef     = useRef(null);
   const zoomRef    = useRef(null);
@@ -120,7 +121,6 @@ export default function PivotGraph({
     const dimFill   = isDark ? "#0e0f1a" : "#dce0f0";
     const dimStroke = isDark ? "#363a62" : "#a8b0d0";
     const edgeDim   = isDark ? "#363a62" : "#a8b0d0";
-
     TABLES.forEach(table => {
       const el  = nodeRefs.current[table.id];
       const lel = labelRefs.current[table.id];
@@ -140,11 +140,21 @@ export default function PivotGraph({
       if (!el) return;
       const key      = [edge.source.id || edge.source, edge.target.id || edge.target].sort().join("||");
       const isActive = !activeEdgePairs || activeEdgePairs.has(key);
-      el.setAttribute("stroke",       isActive && activeEdgePairs ? (activeUC ? activeUC.color + "99" : "#00d4ff88") : edgeDim);
-      el.setAttribute("stroke-width", isActive && activeEdgePairs ? "2.5" : "2");
-      el.style.opacity = isActive ? "1" : "0.06";
+      const tier     = edge.tier || "mid";
+
+      if (activeEdgePairs) {
+        // Filter active — override tier baseline with binary active/dim
+        el.setAttribute("stroke", edgeDim);
+        el.setAttribute("stroke-width", "2");
+        el.style.opacity = isActive ? "1" : "0.06";
+      } else {
+        // No filter — restore tier baseline explicitly
+        el.setAttribute("stroke", "var(--edge)");
+        el.setAttribute("stroke-width", tier === "high" ? "2.5" : tier === "low" ? "1" : "2");
+        el.style.opacity = tier === "high" ? "1" : tier === "low" ? "0.25" : "0.55";
+      }
     });
-  }, [activeUC, activeTableIds, activeEdgePairs, isDark]);
+  }, [activeUC, activeTableIds, activeEdgePairs, isDark, highlightColor]);
 
   // ── Spotlight active step node ────────────────────────────────────────────
   useEffect(() => {
@@ -225,6 +235,12 @@ export default function PivotGraph({
             <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
             <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
           </filter>
+          <style>{`
+            .edge-grp:hover .edge-vis {
+              stroke: var(--tx-3);
+              stroke-width: 3.5px;
+            }
+          `}</style>
         </defs>
 
         {/* Everything inside the zoom group */}
@@ -238,31 +254,24 @@ export default function PivotGraph({
               const edgeKey = [srcId, tgtId].sort().join("||");
               const isEdgeActive = !activeEdgePairs || activeEdgePairs.has(edgeKey);
               return (
-                <g key={i}>
+                <g key={i} className="edge-grp">
                   <line ref={el => edgeRefs.current[i] = el}
-                    stroke="var(--edge)" strokeWidth="2" strokeLinecap="round"
-                    style={{ transition: "stroke 0.2s, opacity 0.2s", pointerEvents: "none" }}
+                    className="edge-vis"
+                    stroke="var(--edge)"
+                    strokeWidth={edge.tier === "high" ? "2.5" : edge.tier === "low" ? "1" : "2"}
+                    strokeLinecap="round"
+                    style={{
+                      pointerEvents: "none",
+                      opacity: edge.tier === "high" ? 1 : edge.tier === "low" ? 0.25 : 0.55,
+                    }}
                   />
                   <line ref={el => edgeHitRefs.current[i] = el}
-                    stroke="transparent" strokeWidth="28" strokeLinecap="round"
-                    style={{
-                      cursor: isEdgeActive ? "pointer" : "default",
-                      pointerEvents: isEdgeActive ? "auto" : "none",
-                    }}
-                    onMouseEnter={() => {
-                      const el = edgeRefs.current[i];
-                      if (el) { el.setAttribute("stroke", "var(--tx-3)"); el.setAttribute("stroke-width", "3.5"); }
-                      onEdgeHover(edge);
-                    }}
-                    onMouseLeave={() => {
-                      const el = edgeRefs.current[i];
-                      if (el) {
-                        const edgeDim = isDark ? "#363a62" : "#a8b0d0";
-                        el.setAttribute("stroke", isEdgeActive && activeEdgePairs ? (activeUC ? activeUC.color + "99" : "#00d4ff88") : edgeDim);
-                        el.setAttribute("stroke-width", isEdgeActive && activeEdgePairs ? "2.5" : "2");
-                      }
-                      onEdgeHover(null);
-                    }}
+                    stroke="transparent"
+                    strokeWidth={isEdgeActive ? "28" : "0"}
+                    strokeLinecap="round"
+                    style={{ cursor: isEdgeActive ? "pointer" : "default" }}
+                    onMouseEnter={() => onEdgeHover(edge)}
+                    onMouseLeave={() => onEdgeHover(null)}
                   />
                 </g>
               );

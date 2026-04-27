@@ -11,10 +11,12 @@ function tableDeprecation(tableId) {
 export default function StepPanel({ activeUC, activeStep, onStepClick }) {
   const [expandedKql, setExpandedKql] = useState(null);
   const [expandedCol, setExpandedCol] = useState(null); // "stepIndex:colKey"
+  const [minimized, setMinimized] = useState(false);
 
   useEffect(() => {
     setExpandedKql(null);
     setExpandedCol(null);
+    setMinimized(false);
   }, [activeUC]);
 
   if (!activeUC) return null;
@@ -32,31 +34,75 @@ export default function StepPanel({ activeUC, activeStep, onStepClick }) {
       position: "absolute",
       top: 16,
       right: 16,
-      width: 460,
+      width: minimized ? "auto" : 460,
       background: "var(--bg-float)",
       border: `1px solid ${activeUC.color}33`,
       borderRadius: 4,
       overflow: "hidden",
-      maxHeight: "calc(100vh - 32px)",
+      maxHeight: minimized ? "none" : "calc(100vh - 32px)",
       display: "flex",
       flexDirection: "column",
     }}>
       {/* Header */}
-      <div style={{ background: activeUC.color + "0a", borderBottom: `1px solid ${activeUC.color}22`, padding: "14px 18px", flexShrink: 0 }}>
-        <div style={{ fontSize: 12, color: activeUC.color + "88", letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 6 }}>
-          Hunt Scenario
-        </div>
-        <div style={{ fontSize: 19, fontWeight: 700, color: activeUC.color, display: "flex", alignItems: "center", gap: 10 }}>
-          <span>{activeUC.icon}</span>{activeUC.name}
-        </div>
-        <div style={{ fontSize: 13, color: "var(--tx-3)", marginTop: 8, lineHeight: 1.65 }}>{activeUC.desc}</div>
-        <div style={{ marginTop: 10, fontSize: 12, color: activeUC.color + "77", letterSpacing: "0.08em" }}>
-          MITRE: {activeUC.tactic}
+      <div style={{ background: activeUC.color + "0a", borderBottom: minimized ? "none" : `1px solid ${activeUC.color}22`, padding: minimized ? "10px 14px" : "14px 18px", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: minimized ? "center" : "flex-start", justifyContent: "space-between", gap: 10 }}>
+          <div style={{ minWidth: 0 }}>
+            {!minimized && (
+              <div style={{ fontSize: 12, color: activeUC.color + "88", letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 6 }}>
+                Hunt Scenario
+              </div>
+            )}
+            <div style={{ fontSize: minimized ? 13 : 19, fontWeight: 700, color: activeUC.color, display: "flex", alignItems: "center", gap: 8, whiteSpace: minimized ? "nowrap" : "normal" }}>
+              <span>{activeUC.icon}</span>
+              <span style={minimized ? { maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" } : {}}>
+                {activeUC.name}
+              </span>
+            </div>
+            {!minimized && (
+              <>
+                <div style={{ fontSize: 13, color: "var(--tx-3)", marginTop: 8, lineHeight: 1.65 }}>{activeUC.desc}</div>
+                <div style={{ marginTop: 10, fontSize: 12, color: activeUC.color + "77", letterSpacing: "0.08em" }}>
+                  MITRE: {activeUC.tactic}
+                </div>
+              </>
+            )}
+            {minimized && (
+              <div style={{ fontSize: 11, color: activeUC.color + "77", letterSpacing: "0.06em", marginTop: 1 }}>
+                {activeUC.steps.length} steps · {activeUC.tactic}
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => setMinimized(m => !m)}
+            title={minimized ? "Expand panel" : "Minimize panel"}
+            style={{
+              flexShrink: 0,
+              background: "none",
+              border: `1px solid ${activeUC.color}33`,
+              borderRadius: 3,
+              color: activeUC.color + "88",
+              cursor: "pointer",
+              fontSize: 13,
+              width: 24,
+              height: 24,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontFamily: "inherit",
+              lineHeight: 1,
+              transition: "all 0.15s",
+              alignSelf: "flex-start",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = activeUC.color; e.currentTarget.style.borderColor = activeUC.color + "66"; }}
+            onMouseLeave={e => { e.currentTarget.style.color = activeUC.color + "88"; e.currentTarget.style.borderColor = activeUC.color + "33"; }}
+          >
+            {minimized ? "▲" : "▼"}
+          </button>
         </div>
       </div>
 
       {/* Steps */}
-      <div style={{ overflowY: "auto", flex: 1 }}>
+      {!minimized && <div style={{ overflowY: "auto", flex: 1 }}>
         <div style={{ padding: "8px 18px 10px", fontSize: 12, color: "var(--tx-5)", letterSpacing: "0.12em", textTransform: "uppercase", borderBottom: "1px solid var(--bd-2)" }}>
           Investigation Steps
         </div>
@@ -245,7 +291,7 @@ export default function StepPanel({ activeUC, activeStep, onStepClick }) {
             </div>
           );
         })}
-      </div>
+      </div>}
     </div>
   );
 }

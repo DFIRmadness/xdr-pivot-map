@@ -8,8 +8,11 @@ export const ROADMAP_TYPES = [
   { id: "identity",   kind: "pivot",    label: "Identity",          icon: "🪪", color: "#ffb347", description: "Follow a compromised or suspicious account across cloud, identity, and endpoint layers" },
   { id: "malware",    kind: "pivot",    label: "Malware",           icon: "🦠", color: "#ff4757", description: "Hunt from a known malicious file or hash through execution, persistence, and C2" },
   { id: "ip",         kind: "pivot",    label: "IP Address",        icon: "🌐", color: "#47ff8f", description: "Pivot from a suspicious IP across network, auth, email, and cloud telemetry" },
-  { id: "devicecode", kind: "scenario", label: "Device Code Phish",  icon: "🔑", color: "#f97316", description: "Attacker tricks a user into authorising an attacker-controlled OAuth device code — MFA is satisfied by the victim but tokens go straight to the attacker" },
-  { id: "aitm",       kind: "scenario", label: "AiTM → Azure VM Exec", icon: "🕳️", color: "#38bdf8", description: "Attacker proxies a Microsoft login in real time to steal the session cookie, replays it into Azure Portal, enumerates VMs, and runs a download cradle via Run Command to execute malware" },
+  { id: "devicecode",  kind: "scenario", label: "Device Code Phish",   icon: "🔑", color: "#f97316", description: "Attacker tricks a user into authorising an attacker-controlled OAuth device code — MFA is satisfied by the victim but tokens go straight to the attacker" },
+  { id: "aitm",        kind: "scenario", label: "AiTM → Azure VM Exec", icon: "🕳️", color: "#38bdf8", description: "Attacker proxies a Microsoft login in real time to steal the session cookie, replays it into Azure Portal, enumerates VMs, and runs a download cradle via Run Command to execute malware" },
+  { id: "becfraud",    kind: "scenario", label: "AiTM → BEC Fraud",     icon: "💸", color: "#fb923c", description: "Session cookie theft leads to inbox rule creation and mailbox reconnaissance, then the attacker impersonates a vendor and redirects a wire transfer" },
+  { id: "infostealer", kind: "scenario", label: "Info Stealer",          icon: "🕵️", color: "#a78bfa", description: "Malvertising or fake software drops Lumma/Redline/StealC — the stealer harvests browser credentials, cookies, and crypto wallets then exfils via Telegram Bot API or Discord webhook" },
+  { id: "clickfix",    kind: "scenario", label: "ClickFix",              icon: "📋", color: "#22d3ee", description: "Fake CAPTCHA or browser-error dialog hijacks the clipboard with an encoded PowerShell cradle and instructs the user to paste it into Windows Run — no attachment, no macro" },
 ];
 
 export const ROADMAPS = {
@@ -17,6 +20,29 @@ export const ROADMAPS = {
   // ── Email ────────────────────────────────────────────────────────────────────
   email: {
     steps: [
+      {
+        table: "AlertInfo",
+        label: "Triage the Alert",
+        goal: "Investigation starts when an alert fires or a tip comes in — not when you're browsing raw telemetry. AlertInfo gives you the detection title, severity, MITRE technique IDs, and which Defender product generated the signal (MDO, MDE, MDI, MDCA). AlertEvidence maps that alert to specific email entities: a NetworkMessageId, a sender address, a recipient account, a URL, or a file hash. Collect every IOC from evidence now — they become the entry points for every table that follows. If you are proactively threat hunting with no alert, skip to EmailEvents.",
+        pivotColumns: ["AlertId", "Title", "Severity", "Category", "AttackTechniques", "ServiceSource"],
+        kql: `AlertInfo
+| where Timestamp > ago(7d)
+| where Category in ("InitialAccess","Phishing","SuspiciousActivity","MaliciousContent")
+    or Title has_any (
+        "phish","malicious email","malicious attachment",
+        "malicious link","spam campaign","suspicious email"
+      )
+| project Timestamp, AlertId, Title, Severity,
+          Category, AttackTechniques, ServiceSource
+| sort by Timestamp desc
+---
+// Pull specific evidence entities tied to a known AlertId
+AlertEvidence
+| where AlertId == "<AlertId_from_AlertInfo>"
+| project Timestamp, AlertId, EntityType, EvidenceRole,
+          AccountName, AccountUpn, DeviceName,
+          FileName, SHA256, NetworkMessageId, RemoteIP`,
+      },
       {
         table: "EmailEvents",
         label: "Find the Email",
@@ -105,25 +131,35 @@ export const ROADMAPS = {
     by DeviceName, RemoteIP, RemoteUrl, RemotePort, InitiatingProcessFileName
 | sort by ConnectionCount desc`,
       },
-      {
-        table: "AlertEvidence",
-        label: "Alerts Fired?",
-        goal: "Check what Defender actually detected. AlertEvidence ties all your previous pivots together — file hashes, IPs, URLs, and accounts may all appear as evidence entities. Use AlertId to pull the full alert context and any automated response actions taken.",
-        pivotColumns: ["AlertId", "EntityType", "SHA256", "RemoteIP", "AccountName", "DeviceName"],
-        kql: `AlertEvidence
-| where Timestamp > ago(7d)
-| where (EntityType == "File" and SHA256 == "<hash>")
-    or (EntityType == "Ip" and RemoteIP == "<ip>")
-    or (EntityType == "User" and AccountName == "<account>")
-| project Timestamp, AlertId, EntityType, EvidenceRole,
-          FileName, SHA256, RemoteIP, AccountName, DeviceName`,
-      },
     ],
   },
 
   // ── Device ───────────────────────────────────────────────────────────────────
   device: {
     steps: [
+      {
+        table: "AlertInfo",
+        label: "Triage the Alert",
+        goal: "Start with Defender's verdict before touching raw telemetry. AlertInfo tells you the detection title, severity, MITRE technique, and which product fired (MDE, MDI, MDCA). AlertEvidence pins the alert to specific entities on the device — the process hash, the file path, a registry key, or the account involved. These confirmed IOCs let you skip broad hunting and jump straight to the relevant events. If no alert exists and you are proactively hunting, skip to DeviceEvents.",
+        pivotColumns: ["AlertId", "Title", "Severity", "Category", "AttackTechniques", "ServiceSource"],
+        kql: `AlertInfo
+| where Timestamp > ago(7d)
+| where Category in (
+    "Malware","SuspiciousActivity","MaliciousContent",
+    "Ransomware","LateralMovement","Persistence","Execution"
+  )
+| project Timestamp, AlertId, Title, Severity,
+          Category, AttackTechniques, ServiceSource
+| sort by Timestamp desc
+---
+// Pull device-specific evidence entities from a known alert
+AlertEvidence
+| where AlertId == "<AlertId_from_AlertInfo>"
+    and DeviceName == "<target_device>"
+| project Timestamp, AlertId, EntityType, EvidenceRole,
+          DeviceName, FileName, FolderPath, SHA256,
+          ProcessCommandLine, RemoteIP, AccountName`,
+      },
       {
         table: "DeviceEvents",
         label: "Device Baseline",
@@ -240,6 +276,33 @@ export const ROADMAPS = {
   identity: {
     steps: [
       {
+        table: "AlertInfo",
+        label: "Triage the Alert",
+        goal: "Identity alerts can originate from multiple Defender products — MDI sees on-prem Kerberos/NTLM anomalies, MDCA flags cloud app risky behavior, and MDO catches credential phishing. Start here to understand what was detected and from which source before pulling auth logs. AlertEvidence links each alert to the specific account UPN, object ID, or source IP that was flagged — anchor your entire investigation to those identifiers. If proactively hunting with no alert, skip to IdentityLogonEvents.",
+        pivotColumns: ["AlertId", "Title", "Severity", "Category", "AttackTechniques", "ServiceSource"],
+        kql: `AlertInfo
+| where Timestamp > ago(14d)
+| where Category in (
+    "CredentialAccess","LateralMovement","Persistence",
+    "PrivilegeEscalation","InitialAccess","Reconnaissance"
+  )
+  or Title has_any (
+      "identity","account","credential","sign-in",
+      "logon","password","MFA","Kerberos","NTLM","spray"
+    )
+| project Timestamp, AlertId, Title, Severity,
+          Category, AttackTechniques, ServiceSource
+| sort by Timestamp desc
+---
+// Get identity evidence entities from a known alert
+AlertEvidence
+| where AlertId == "<AlertId_from_AlertInfo>"
+    and EntityType in ("User","Account","CloudLogonRequest")
+| project Timestamp, AlertId, EntityType, EvidenceRole,
+          AccountName, AccountUpn, AccountObjectId,
+          DeviceName, RemoteIP`,
+      },
+      {
         table: "IdentityLogonEvents",
         label: "Authentication Pattern",
         goal: "Start with the full authentication history. Look for logon failures followed by success (password spray or brute force), logins from new countries or IPs, unusual hours, and protocol mismatches (NTLM where Kerberos is expected). This is ground truth for on-prem auth.",
@@ -329,22 +392,6 @@ export const ROADMAPS = {
   )
 | project Timestamp, Application, ActionType,
           IPAddress, UserAgent, RawEventData`,
-      },
-      {
-        table: "AlertEvidence",
-        label: "Alerts on this Identity",
-        goal: "Pull all alerts where this account appears as evidence. AlertEvidence connects the identity to detection signals across the entire kill chain — you may find alerts you weren't aware of that provide additional pivot points.",
-        pivotColumns: ["AccountName", "AccountUpn", "AlertId", "EntityType"],
-        kql: `AlertEvidence
-| where Timestamp > ago(30d)
-| where EntityType == "User"
-    and (AccountName =~ "<samaccountname>"
-      or AccountObjectId == "<aad_object_id>")
-| project Timestamp, AlertId, EvidenceRole,
-          AccountName, AccountObjectId, DeviceName
-| join kind=inner (
-    AlertInfo | project AlertId, Title, Severity, Category
-  ) on AlertId`,
       },
     ],
   },
@@ -462,6 +509,29 @@ export const ROADMAPS = {
   ip: {
     steps: [
       {
+        table: "AlertInfo",
+        label: "Triage the Alert",
+        goal: "An IP indicator may have surfaced from threat intel, network telemetry, or an active detection. Before pivoting through every data source, check what Defender already knows. AlertEvidence with EntityType == 'Ip' links the IP to all existing alerts — this immediately tells you whether it's flagged as C2, a spam sender, a brute-force source, or an exfil destination, and which other entities (devices, accounts) it was already associated with. Starting here prevents redundant work and may reveal attack context that raw network logs alone cannot provide.",
+        pivotColumns: ["AlertId", "Title", "Severity", "Category", "AttackTechniques", "ServiceSource"],
+        kql: `// Find all alerts where this IP appears as an evidence entity
+AlertEvidence
+| where Timestamp > ago(7d)
+| where EntityType == "Ip"
+    and RemoteIP == "<target_ip>"
+| join kind=inner (
+    AlertInfo | project AlertId, Title, Severity, Category, AttackTechniques, ServiceSource
+  ) on AlertId
+| project Timestamp, AlertId, Title, Severity, Category,
+          AttackTechniques, ServiceSource, EvidenceRole, RemoteIP
+| sort by Timestamp desc
+---
+// Broader: recent alerts to correlate if the IP isn't yet in evidence
+AlertInfo
+| where Timestamp > ago(7d)
+| project Timestamp, AlertId, Title, Severity, Category, ServiceSource
+| sort by Timestamp desc`,
+      },
+      {
         table: "DeviceNetworkEvents",
         label: "Network Connections",
         goal: "Which devices in the environment talked to this IP, and what process made the connection? The InitiatingProcessFileName tells you whether it was a browser, a malware implant, or a system process. Look for unusual processes making external connections and beaconing patterns.",
@@ -533,27 +603,39 @@ export const ROADMAPS = {
   by Application, IPAddress
 | sort by Count desc`,
       },
-      {
-        table: "AlertEvidence",
-        label: "Alerts on this IP",
-        goal: "Correlate the IP against all Defender alert evidence. An IP appearing across multiple alert investigations confirms it's active attacker infrastructure. Note every AlertId — each one gives you additional context and related indicators to expand your hunt.",
-        pivotColumns: ["RemoteIP", "AlertId", "EntityType", "EvidenceRole"],
-        kql: `AlertEvidence
-| where Timestamp > ago(30d)
-| where EntityType == "Ip"
-    and RemoteIP == "<target_ip>"
-| project Timestamp, AlertId, EvidenceRole, DeviceName, AccountName
-| join kind=inner (
-    AlertInfo | project AlertId, Title, Severity, Category
-  ) on AlertId
-| sort by Timestamp desc`,
-      },
     ],
   },
 
   // ── AiTM Phishing → Azure VM Execution ───────────────────────────────────
   aitm: {
     steps: [
+      {
+        table: "AlertInfo",
+        label: "Triage Existing Detections",
+        goal: "Before walking the kill chain step by step, check what Defender XDR already detected. AiTM attacks trigger analytics across multiple products: MDO may have flagged the phishing link, MDCA fires on impossible travel or anomalous token usage, and MDI may alert on suspicious sign-in patterns. The ServiceSource field tells you which part of the kill chain already has coverage. Use confirmed AlertEvidence IOCs — the compromised account UPN, the attacker's IP, the proxy domain — to anchor every subsequent query. Stages with no corresponding alert are detection coverage gaps worth documenting. If Defender has already correlated the full chain, the evidence entities here may let you skip directly to containment.",
+        pivotColumns: ["AlertId", "Title", "Severity", "Category", "AttackTechniques", "ServiceSource"],
+        kql: `AlertInfo
+| where Timestamp > ago(14d)
+| where Title has_any (
+    "AiTM", "adversary-in-the-middle",
+    "impossible travel", "token theft",
+    "suspicious sign-in", "risky sign",
+    "Run Command", "unusual VM activity",
+    "suspicious Azure", "suspicious cloud",
+    "download cradle", "malicious PowerShell"
+  )
+  or AttackTechniques has_any ("T1557", "T1059", "T1078", "T1562", "T1534")
+  or Category in ("InitialAccess", "Execution", "CredentialAccess")
+| project Timestamp, AlertId, Title, Severity,
+          Category, AttackTechniques, ServiceSource
+| sort by Timestamp desc
+---
+// Get evidence entities from each alert to seed downstream pivots
+AlertEvidence
+| where AlertId in ("<AlertId1>","<AlertId2>")
+| project Timestamp, AlertId, EntityType, EvidenceRole,
+          AccountUpn, DeviceName, SHA256, RemoteIP`,
+      },
       {
         table: "EmailEvents",
         label: "The AiTM Lure",
@@ -754,40 +836,39 @@ CloudAppEvents
 | sort by Connections desc
 // BeaconingInterval near a round number (60s, 300s) = implant beacon jitter`,
       },
-      {
-        table: "AlertInfo",
-        label: "Defender Detections",
-        goal: "Correlate across all Defender XDR alert sources to build the complete picture and identify any signals you may have missed. Microsoft has detections for AiTM phishing, impossible travel, suspicious session usage, Azure Run Command abuse, and process injection from trusted Azure agents. The ServiceSource field tells you which Defender product fired each alert — MDI, MDO, MDE, and MDCA each see different parts of this kill chain. If Defender for Servers alerted on the VM-side execution, the evidence entities in AlertEvidence will include the process hash and C2 IP — immediate IOCs for blocking. A gap analysis here (no alert for a specific stage) is a finding for your detection engineering team.",
-        pivotColumns: ["AlertId", "Title", "Severity", "Category", "AttackTechniques"],
-        kql: `AlertInfo
-| where Timestamp > ago(14d)
-| where Title has_any (
-    "AiTM", "adversary-in-the-middle",
-    "impossible travel", "token theft",
-    "suspicious sign-in", "risky sign",
-    "Run Command", "unusual VM activity",
-    "suspicious Azure", "suspicious cloud",
-    "download cradle", "malicious PowerShell"
-  )
-  or AttackTechniques has_any ("T1557", "T1059", "T1078", "T1562")
-  or Category in ("InitialAccess", "Execution", "CredentialAccess")
-| project Timestamp, AlertId, Title, Severity,
-          Category, AttackTechniques, ServiceSource
-| join kind=leftouter (
-    AlertEvidence
-    | where AccountUpn =~ "<compromised_upn>"
-        or DeviceName == "<VM_name>"
-    | project AlertId, EntityType, EvidenceRole,
-              AccountUpn, DeviceName, SHA256, RemoteIP
-) on AlertId
-| sort by Timestamp desc`,
-      },
     ],
   },
 
   // ── Device Code Auth Flow Attack ──────────────────────────────────────────
   devicecode: {
     steps: [
+      {
+        table: "AlertInfo",
+        label: "Triage Existing Detections",
+        goal: "Before tracing the attack chain manually, check what Defender XDR already surfaced. Device code abuse generates signals across MDO (phishing lure), MDCA (anomalous token usage, impossible travel, inbox rule creation), and Entra ID Protection (risky sign-in). Each ServiceSource in AlertInfo tells you how far into the chain existing detections reach. Pull AlertEvidence for each alert to collect the confirmed account UPN and attacker IP — these seed every table in the investigation. Stages with no alert are detection coverage gaps. If alerts already span the full chain, pivoting to containment may be more urgent than completing the manual investigation.",
+        pivotColumns: ["AlertId", "Title", "Severity", "Category", "AttackTechniques", "ServiceSource"],
+        kql: `AlertInfo
+| where Timestamp > ago(14d)
+| where Category in (
+    "InitialAccess", "CredentialAccess",
+    "Persistence", "Exfiltration", "Collection"
+  )
+  or Title has_any (
+    "device code","token theft","suspicious sign",
+    "impossible travel","inbox rule","mail forwarding",
+    "anomalous token","risky sign","OAuth"
+  )
+| project Timestamp, AlertId, Title, Severity,
+          Category, AttackTechniques, ServiceSource
+| sort by Timestamp desc
+---
+// Get evidence entities to seed downstream pivots
+AlertEvidence
+| where AlertId in ("<AlertId1>","<AlertId2>")
+    and EntityType in ("User","Ip","CloudLogonRequest")
+| project Timestamp, AlertId, EntityType, EvidenceRole,
+          AccountUpn, AccountObjectId, RemoteIP`,
+      },
       {
         table: "EmailEvents",
         label: "Find the Lure",
@@ -938,32 +1019,456 @@ GraphApiAuditEvents
           IPAddress, AccountUpn, AdditionalFields
 | sort by Timestamp asc`,
       },
+    ],
+  },
+
+  // ── AiTM → BEC Fraud ─────────────────────────────────────────────────────
+  becfraud: {
+    steps: [
       {
         table: "AlertInfo",
-        label: "Defender Detections",
-        goal: "Check what Defender XDR detected across the kill chain — you may find alerts that fire on indicators you haven't yet correlated. Microsoft has analytics for suspicious device code authentication patterns, impossible travel, anomalous token usage, new inbox rules created by unusual clients, and high-volume mail access. Cross-reference every AlertId against AlertEvidence to confirm the compromised account appears as evidence in existing alerts. If no alerts fired, note the gaps — a device code auth on an unmanaged device with no CA policy block and no alert is a detection coverage finding worth remediating.",
-        pivotColumns: ["AlertId", "Title", "Severity", "Category", "AttackTechniques"],
-        kql: `// Alerts matching the attack chain — account, IPs, and detection categories
-AlertInfo
+        label: "Triage Existing Detections",
+        goal: "Before walking the kill chain, check what Defender XDR already knows. BEC and AiTM attacks generate signals across MDO (phishing lure, anomalous send volume), MDCA (impossible travel, inbox rule creation, suspicious sign-in), and MDI (unusual auth patterns). Use confirmed AlertEvidence IOCs — the compromised UPN and attacker IP — to anchor every subsequent query. Stages with no alert are detection coverage gaps worth documenting.",
+        pivotColumns: ["AlertId", "Title", "Severity", "Category", "AttackTechniques", "ServiceSource"],
+        kql: `AlertInfo
 | where Timestamp > ago(14d)
-| where Category in (
-    "InitialAccess", "CredentialAccess",
-    "Persistence", "Exfiltration", "Collection"
-  )
-  or Title has_any (
-    "device code","token theft","suspicious sign",
-    "impossible travel","inbox rule","mail forwarding",
-    "anomalous token","risky sign"
-  )
+| where Title has_any (
+    "AiTM","impossible travel","token theft",
+    "inbox rule","mail forwarding","BEC",
+    "suspicious sign-in","anomalous send")
+  or Category in ("InitialAccess","Persistence","Collection","Exfiltration")
+| project Timestamp, AlertId, Title, Severity,
+          Category, AttackTechniques, ServiceSource
+| sort by Timestamp desc
+---
+AlertEvidence
+| where AlertId in ("<AlertId1>","<AlertId2>")
+    and EntityType in ("User","Ip","Mailbox")
+| project Timestamp, AlertId, EntityType, EvidenceRole,
+          AccountUpn, AccountObjectId, RemoteIP`,
+      },
+      {
+        table: "EmailEvents",
+        label: "Find the AiTM Lure",
+        goal: "The BEC chain always starts with an email. The attacker needs to steal an MFA-satisfied session cookie, so the lure impersonates a Microsoft authentication prompt, a shared document notification, or a finance alert. The key tell is a non-Microsoft sender domain pointing to a URL that is not login.microsoftonline.com but behaves identically — it's an attacker-controlled reverse proxy. Check ThreatTypes: MDO may have already stamped it as Phish if the proxy domain has prior reputation.",
+        pivotColumns: ["NetworkMessageId", "SenderFromAddress", "SenderIPv4", "RecipientEmailAddress", "ThreatTypes"],
+        kql: `EmailEvents
+| where Timestamp > ago(14d)
+| where DeliveryAction in ("Delivered","DeliveredAsSpam")
+| where Subject has_any (
+    "sign-in","verify","MFA","invoice","payment",
+    "authentication","action required","review document")
+  and SenderFromDomain !endswith "microsoft.com"
+| project Timestamp, SenderFromAddress, SenderFromDomain,
+          RecipientEmailAddress, Subject,
+          DeliveryAction, ThreatTypes, NetworkMessageId
+| sort by Timestamp desc`,
+      },
+      {
+        table: "UrlClickEvents",
+        label: "Confirm the Proxy Click",
+        goal: "The UrlChain field is the critical differentiator between AiTM and normal phishing. In AiTM, the chain shows the phishing link redirecting through the attacker's proxy domain before arriving at login.microsoftonline.com. The victim sees a legitimate Microsoft login page and completes MFA normally — the proxy intercepts the resulting session cookie. AccountUpn from this table is your identity anchor for every subsequent query. IsClickedThrough = true means the user bypassed a Safe Links warning.",
+        pivotColumns: ["AccountUpn", "Url", "UrlChain", "ActionType", "IsClickedThrough", "IPAddress"],
+        kql: `UrlClickEvents
+| where Timestamp > ago(14d)
+| where NetworkMessageId == "<NetworkMessageId from EmailEvents>"
+    or Url has "<proxy_domain from EmailUrlInfo>"
+| project Timestamp, AccountUpn, Url, UrlChain,
+          ActionType, IsClickedThrough, IPAddress, NetworkMessageId
+| sort by Timestamp desc`,
+      },
+      {
+        table: "AADSignInEventsBeta",
+        label: "The Session Hijack",
+        goal: "After the victim completes MFA through the proxy, Entra ID records a successful sign-in from the victim's IP. Within seconds to minutes, the attacker replays the stolen cookie and Entra ID records a second successful sign-in for the same account from a completely different IP — often a different country. The second sign-in carries no MFA challenge because the cookie already contains the MFA satisfaction claim. Look for: two successful sign-ins in a short window from different IPs, IsManaged = false on the attacker's session, and elevated RiskLevelDuringSignIn.",
+        pivotColumns: ["AccountUpn", "AccountObjectId", "IPAddress", "Country", "IsManaged", "RiskLevelDuringSignIn", "ErrorCode"],
+        kql: `AADSignInEventsBeta
+| where Timestamp > ago(14d)
+| where AccountUpn =~ "<AccountUpn from UrlClickEvents>"
+    and ErrorCode == 0
+| summarize SignIns = count(),
+            IPs = make_set(IPAddress),
+            Countries = make_set(Country)
+    by AccountUpn, bin(Timestamp, 1h)
+| where array_length(IPs) > 1
+---
+AADSignInEventsBeta
+| where Timestamp > ago(14d)
+| where AccountUpn =~ "<AccountUpn>"
+    and IsManaged == false and ErrorCode == 0
+| project Timestamp, AccountUpn, IPAddress, Country,
+          Application, RiskLevelDuringSignIn, AccountObjectId`,
+      },
+      {
+        table: "CloudAppEvents",
+        label: "Inbox Rule Creation",
+        goal: "The attacker's first priority is persistence and situational awareness: create inbox rules that hide security notification emails (move to Deleted Items, mark as read) and forward a silent copy of all incoming mail to an external address. New-InboxRule with ForwardTo pointing to a free email provider is a confirmed compromise indicator. Set-Mailbox with ForwardingSmtpAddress is an even more powerful persistence mechanism — it survives password resets. Parse RawEventData as JSON to extract the rule conditions and actions.",
+        pivotColumns: ["AccountObjectId", "AccountUpn", "ActionType", "IPAddress", "RawEventData"],
+        kql: `CloudAppEvents
+| where Timestamp > ago(14d)
+| where AccountObjectId == "<AccountObjectId from AADSignIn>"
+| where ActionType in (
+    "New-InboxRule","Set-InboxRule",
+    "Set-Mailbox","Add-MailboxPermission",
+    "New-TransportRule","Set-TransportRule")
+| extend RuleDetails = parse_json(RawEventData)
+| project Timestamp, AccountUpn, ActionType,
+          IPAddress, UserAgent, RuleDetails, RawEventData
+| sort by Timestamp asc`,
+      },
+      {
+        table: "CloudAppEvents",
+        label: "Mailbox Reconnaissance",
+        goal: "With the inbox rule suppressing alerts, the attacker reads the victim's email to understand payment workflows, identify approvers, find in-flight vendor invoices, and locate banking details to substitute. MailItemsAccessed and SearchQueryInitiatedExchange in CloudAppEvents record this reconnaissance. A high volume of MailItemsAccessed operations in a short window from the attacker's IP is the signal. The attacker is specifically looking for the most recent invoice exchange with a vendor.",
+        pivotColumns: ["AccountObjectId", "AccountUpn", "ActionType", "IPAddress", "ObjectName"],
+        kql: `CloudAppEvents
+| where Timestamp > ago(14d)
+| where AccountObjectId == "<AccountObjectId>"
+| where ActionType in (
+    "MailItemsAccessed","SearchQueryInitiatedExchange",
+    "FileDownloaded","FileSyncDownloadedFull")
+| where IPAddress == "<attacker_IP from AADSignIn>"
+| project Timestamp, Application, ActionType,
+          IPAddress, UserAgent, ObjectName, RawEventData
+| sort by Timestamp asc`,
+      },
+      {
+        table: "EmailEvents",
+        label: "The BEC Fraud Email",
+        goal: "Armed with context from the victim's mailbox, the attacker sends a fraudulent email from the compromised account (or a lookalike domain) to the finance team or a vendor. The email references real invoice details and requests a bank account change or urgent wire transfer. It may arrive in a reply-all thread from the real conversation. EmailDirection == 'Outbound' from the compromised account with finance-related subjects is the detection pivot. The RecipientEmailAddress may be an external vendor — check if they were targeted in subsequent invoice fraud.",
+        pivotColumns: ["SenderFromAddress", "RecipientEmailAddress", "Subject", "NetworkMessageId", "EmailDirection"],
+        kql: `EmailEvents
+| where Timestamp > ago(14d)
+| where SenderFromAddress =~ "<compromised_account>"
+    and EmailDirection == "Outbound"
+| where Subject has_any (
+    "invoice","payment","wire","bank account",
+    "transfer","urgent","updated banking","remittance",
+    "account details","new account")
+| project Timestamp, SenderFromAddress, RecipientEmailAddress,
+          Subject, DeliveryAction, NetworkMessageId
+| sort by Timestamp desc`,
+      },
+      {
+        table: "AlertInfo",
+        label: "Detection Gap Analysis",
+        goal: "⚠ NOTE — This is NOT a repeat of the opening triage step. The opening AlertInfo check seeds your investigation with known IOCs. This closing step answers a different question: now that you have traced every kill chain stage through raw telemetry, which stages actually fired an alert and which ones were invisible to Defender? That gap list is the primary deliverable for detection engineering. BEC attacks routinely complete with zero alerts: the AiTM proxy uses a fresh domain (no reputation), session cookie replay looks identical to a normal sign-in, and inbox rule creation is a legitimate Office 365 feature. Map each kill chain stage to its ServiceSource — or document 'no alert' — and hand the gaps to your detection team.",
+        pivotColumns: ["AlertId", "Title", "Severity", "Category", "AttackTechniques", "ServiceSource"],
+        kql: `AlertInfo
+| where Timestamp > ago(14d)
+| where Title has_any (
+    "AiTM","impossible travel","token theft",
+    "inbox rule","BEC","mail forwarding",
+    "anomalous send","suspicious sign-in")
+  or AttackTechniques has_any (
+    "T1557","T1114","T1534","T1566","T1078")
 | project Timestamp, AlertId, Title, Severity,
           Category, AttackTechniques, ServiceSource
 | join kind=leftouter (
     AlertEvidence
-    | where EntityType == "User"
-        and AccountUpn =~ "<compromised_upn>"
-    | project AlertId, EvidenceRole, AccountUpn
+    | where AccountUpn =~ "<compromised_upn>"
+    | project AlertId, EvidenceRole, AccountUpn, RemoteIP
 ) on AlertId
 | sort by Timestamp desc`,
+      },
+    ],
+  },
+
+  // ── Info Stealer Malware ──────────────────────────────────────────────────
+  infostealer: {
+    steps: [
+      {
+        table: "AlertInfo",
+        label: "Triage Existing Detections",
+        goal: "Before tracing the stealer manually, check what MDE already detected. Info stealers generate signals at multiple stages: download of the malware binary, DPAPI access by a non-browser process, browser credential database reads, and outbound connections to Telegram or Discord. Each alert tells you how far into the chain MDE's behavioral detections reached. Use AlertEvidence to get the stealer binary hash (SHA256) immediately — this becomes your primary pivot for scoping across all devices.",
+        pivotColumns: ["AlertId", "Title", "Severity", "Category", "AttackTechniques", "ServiceSource"],
+        kql: `AlertInfo
+| where Timestamp > ago(7d)
+| where Category in ("Malware","SuspiciousActivity","CredentialAccess")
+  or Title has_any (
+    "stealer","credential theft","browser data",
+    "DPAPI","Lumma","Redline","StealC","Vidar",
+    "Telegram","Discord C2","infostealer")
+| project Timestamp, AlertId, Title, Severity,
+          Category, AttackTechniques, ServiceSource
+| sort by Timestamp desc
+---
+AlertEvidence
+| where AlertId in ("<AlertId1>","<AlertId2>")
+    and EntityType in ("File","Process","Ip","Machine")
+| project Timestamp, AlertId, EntityType, EvidenceRole,
+          FileName, SHA256, RemoteIP, DeviceName`,
+      },
+      {
+        table: "DeviceProcessEvents",
+        label: "Initial Execution",
+        goal: "Info stealers arrive via malvertising (browser downloads a fake software installer), cracked software from third-party sites, or secondary payload delivery from a dropper like Amadey or MiniLoader. The initial execution often shows: a browser or explorer.exe as the parent process, the binary running from a Temp or Downloads path, a suspicious process name (often a copy of a legitimate app's name), and a SHA256 hash unknown to threat intel. Look for LOLBin chains where the downloaded file spawns cmd or PowerShell to execute the stealer in memory.",
+        pivotColumns: ["SHA256", "FileName", "FolderPath", "ProcessCommandLine", "InitiatingProcessFileName", "DeviceName"],
+        kql: `DeviceProcessEvents
+| where Timestamp > ago(7d)
+| where FolderPath has_any (@"\Temp\",@"\AppData\Local\",@"\Downloads\")
+    or InitiatingProcessFileName in~ (
+        "chrome.exe","msedge.exe","firefox.exe",
+        "explorer.exe","msiexec.exe")
+| where FileName in~ (
+    "powershell.exe","cmd.exe","mshta.exe",
+    "wscript.exe","cscript.exe","regsvr32.exe","rundll32.exe")
+    or SHA256 == "<known_stealer_hash>"
+| project Timestamp, DeviceName, FileName, ProcessCommandLine,
+          SHA256, FolderPath, InitiatingProcessFileName,
+          InitiatingProcessCommandLine, AccountName`,
+      },
+      {
+        table: "DeviceFileEvents",
+        label: "Browser Credential Access",
+        goal: "The stealer's primary target is the Chrome/Edge/Firefox credential store. Chrome and Edge store passwords in SQLite databases (Login Data) encrypted with DPAPI, with the master key stored in Local State. Firefox uses key4.db and logins.json. Any file read of these paths by a process other than the browser itself is a confirmed credential theft indicator. The stealer also targets browser extension storage for MetaMask and other crypto wallets — look for reads of IndexedDB files under the extensions folder.",
+        pivotColumns: ["FileName", "FolderPath", "InitiatingProcessFileName", "SHA256", "DeviceName"],
+        kql: `DeviceFileEvents
+| where Timestamp > ago(7d)
+| where FolderPath has_any (
+    @"Chrome\User Data\Default\Login Data",
+    @"Chrome\User Data\Local State",
+    @"Edge\User Data\Default\Login Data",
+    @"Mozilla\Firefox\Profiles",
+    @"Chrome\User Data\Default\Cookies",
+    @"Chrome\User Data\Default\Network\Cookies")
+  and InitiatingProcessFileName !in~ (
+    "chrome.exe","msedge.exe","firefox.exe",
+    "MicrosoftEdgeUpdate.exe","GoogleUpdate.exe")
+| project Timestamp, DeviceName, ActionType, FileName,
+          FolderPath, SHA256, InitiatingProcessFileName,
+          InitiatingProcessCommandLine`,
+      },
+      {
+        table: "DeviceEvents",
+        label: "DPAPI Key Decryption",
+        goal: "After reading the Login Data SQLite file, the stealer must decrypt it. Chrome and Edge encrypt stored passwords with AES-256, where the key is itself wrapped with DPAPI (Windows Data Protection API). The stealer calls CryptUnprotectData (or makes direct syscalls to bypass EDR hooks) to unwrap the master key, then uses it to decrypt every password in the database. A non-browser process calling DPAPI on browser-related data is one of the strongest behavioral indicators for info stealer activity.",
+        pivotColumns: ["ActionType", "InitiatingProcessFileName", "InitiatingProcessId", "DeviceName"],
+        kql: `DeviceEvents
+| where Timestamp > ago(7d)
+| where ActionType in (
+    "DpapiAccessed","OpenProcessApiCall")
+| where InitiatingProcessFileName !in~ (
+    "chrome.exe","msedge.exe","firefox.exe",
+    "explorer.exe","lsass.exe","svchost.exe",
+    "MicrosoftEdge.exe","GoogleUpdate.exe")
+| project Timestamp, DeviceName, ActionType,
+          InitiatingProcessFileName, InitiatingProcessId,
+          InitiatingProcessCommandLine, FileName, AccountName`,
+      },
+      {
+        table: "DeviceRegistryEvents",
+        label: "Persistence Setup",
+        goal: "Many modern stealers add persistence to enable repeated harvesting — each new browser session creates fresh authenticated cookies. The most common mechanism is a Run key pointing to the stealer binary or a dropper. Some families use COM hijacking (CLSID) or scheduled tasks. Run keys set by processes running from Temp or AppData paths are highly suspicious. RegistryValueData containing encoded strings or paths to Temp directories confirm malicious intent.",
+        pivotColumns: ["RegistryKey", "RegistryValueData", "InitiatingProcessFileName", "DeviceName"],
+        kql: `DeviceRegistryEvents
+| where Timestamp > ago(7d)
+| where RegistryKey has_any (
+    @"Software\Microsoft\Windows\CurrentVersion\Run",
+    @"Software\Microsoft\Windows\CurrentVersion\RunOnce",
+    @"SOFTWARE\Classes\CLSID")
+| where ActionType in ("RegistryValueSet","RegistryKeyCreated")
+| where InitiatingProcessFileName !in~ (
+    "msiexec.exe","svchost.exe","explorer.exe","system")
+| project Timestamp, DeviceName, RegistryKey,
+          RegistryValueName, RegistryValueData,
+          InitiatingProcessFileName, InitiatingProcessId`,
+      },
+      {
+        table: "DeviceNetworkEvents",
+        label: "Exfiltration via Telegram / Discord",
+        goal: "Stealer logs are exfiltrated as structured JSON or ZIP archives via Telegram Bot API (api.telegram.org/bot<token>/sendDocument) or Discord webhooks (discord.com/api/webhooks/<id>/<token>). These channels are attractive because they use HTTPS over port 443 (blends with normal traffic) and the domain reputation is high (Telegram and Discord are legitimate services). Any process other than the official Telegram or Discord client calling these endpoints has stolen data. SentBytes in the event indicates payload size — even small POSTs (under 1MB) represent a full credential log.",
+        pivotColumns: ["RemoteUrl", "RemoteIP", "InitiatingProcessFileName", "SentBytes", "DeviceName"],
+        kql: `DeviceNetworkEvents
+| where Timestamp > ago(7d)
+| where RemoteUrl has_any (
+    "api.telegram.org","discord.com/api/webhooks","t.me")
+  and InitiatingProcessFileName !in~ (
+    "chrome.exe","msedge.exe","firefox.exe",
+    "telegram.exe","discord.exe","slack.exe")
+| project Timestamp, DeviceName, RemoteIP, RemoteUrl,
+          RemotePort, InitiatingProcessFileName,
+          InitiatingProcessId, SentBytes
+| sort by Timestamp asc`,
+      },
+      {
+        table: "AlertInfo",
+        label: "Scope & Containment",
+        goal: "⚠ NOTE — This is NOT a repeat of the opening triage step. The opening AlertInfo check seeds your investigation. This closing step answers two different questions: (1) How many devices were hit by this campaign? (2) Which kill chain stages did Defender miss? Info stealer campaigns are almost always multi-device — a single malvertising ad or fake software page can deliver the payload to hundreds of machines before it is taken down. Use the stealer SHA256 to scope every device that received it across the full 30-day window. Every device on that list requires a full credential reset — treat all browser-stored passwords, cookies, and crypto wallet seeds as compromised. The missed-detection stages (often: download and DPAPI access) are the gap deliverable for your detection team.",
+        pivotColumns: ["AlertId", "Title", "Severity", "Category", "AttackTechniques", "ServiceSource"],
+        kql: `// Scope: all devices that received the stealer binary
+DeviceFileEvents
+| where Timestamp > ago(30d)
+| where SHA256 == "<stealer_SHA256 from AlertEvidence>"
+| summarize FirstSeen = min(Timestamp), LastSeen = max(Timestamp),
+            DeviceCount = dcount(DeviceName),
+            Devices = make_set(DeviceName)
+  by SHA256, FileName
+---
+// Full alert set for the campaign
+AlertInfo
+| where Timestamp > ago(30d)
+| where Title has_any (
+    "stealer","credential","DPAPI","browser data",
+    "Lumma","Redline","StealC","Vidar")
+| project Timestamp, AlertId, Title, Severity,
+          Category, AttackTechniques, ServiceSource`,
+      },
+    ],
+  },
+
+  // ── ClickFix Social Engineering ──────────────────────────────────────────
+  clickfix: {
+    steps: [
+      {
+        table: "AlertInfo",
+        label: "Triage Existing Detections",
+        goal: "Before tracing the ClickFix chain manually, check what MDE already surfaced. ClickFix delivers payloads via explorer-parented PowerShell with encoded commands — MDE behavioral analytics detect this pattern and fire on 'suspicious PowerShell execution', 'encoded command', or 'LOLBin abuse'. Existing alerts give you the device name, the PowerShell command line, and the payload hash. Use these as anchors. Note: there may be no phishing alert if delivery was via malvertising rather than email.",
+        pivotColumns: ["AlertId", "Title", "Severity", "Category", "AttackTechniques", "ServiceSource"],
+        kql: `AlertInfo
+| where Timestamp > ago(7d)
+| where Category in ("Execution","InitialAccess","Persistence")
+  or Title has_any (
+    "ClickFix","encoded command","suspicious PowerShell",
+    "mshta","certutil download","LOLBin",
+    "clipboard","download cradle","suspicious process",
+    "Run dialog","user executed")
+| project Timestamp, AlertId, Title, Severity,
+          Category, AttackTechniques, ServiceSource
+| sort by Timestamp desc
+---
+AlertEvidence
+| where AlertId in ("<AlertId1>","<AlertId2>")
+    and EntityType in ("Process","File","Machine")
+| project Timestamp, AlertId, EntityType, EvidenceRole,
+          FileName, SHA256, ProcessCommandLine, DeviceName`,
+      },
+      {
+        table: "EmailEvents",
+        label: "Find the Delivery Email",
+        goal: "ClickFix is delivered through two primary vectors: phishing email with a link to a malicious site, or malvertising (user searches for software and lands on a poisoned result). If email-delivered, the lure subject typically references a CAPTCHA verification, a document access request, a browser update requirement, or a Windows security warning. The linked domain will not be a known malicious domain (it's often a newly registered site with clean reputation). Check DeliveryAction and ThreatTypes — MDO may have missed it if the domain was freshly registered.",
+        pivotColumns: ["NetworkMessageId", "SenderFromAddress", "RecipientEmailAddress", "ThreatTypes", "DeliveryAction"],
+        kql: `EmailEvents
+| where Timestamp > ago(7d)
+| where DeliveryAction in ("Delivered","DeliveredAsSpam")
+| where Subject has_any (
+    "verify","captcha","browser","document","access",
+    "update","error","fix","confirm","security","check")
+  and SenderFromDomain !endswith "yourdomain.com"
+| project Timestamp, SenderFromAddress, SenderFromDomain,
+          RecipientEmailAddress, Subject,
+          ThreatTypes, DeliveryAction, NetworkMessageId
+| sort by Timestamp desc`,
+      },
+      {
+        table: "DeviceNetworkEvents",
+        label: "Browser Visits Malicious Site",
+        goal: "The browser navigates to the ClickFix landing page, which renders a convincing fake dialog (CAPTCHA, PDF viewer error, browser update prompt). The JavaScript on the page executes navigator.clipboard.writeText() to silently overwrite the clipboard with an encoded PowerShell command — no user permission required. The dialog then instructs the user to open Windows Run (Win+R), paste the clipboard content, and press Enter. Look for browsers accessing domains with security-themed names that are not established services.",
+        pivotColumns: ["RemoteUrl", "RemoteIP", "InitiatingProcessFileName", "DeviceName"],
+        kql: `DeviceNetworkEvents
+| where Timestamp > ago(7d)
+| where InitiatingProcessFileName in~ (
+    "chrome.exe","msedge.exe","firefox.exe","iexplore.exe")
+  and RemoteIPType == "Public"
+| where RemoteUrl has_any (
+    "captcha","verify","browser-fix","repair",
+    "windows-update","document-view","access-denied",
+    "security-check","human-verify")
+| project Timestamp, DeviceName, RemoteUrl, RemoteIP,
+          RemotePort, InitiatingProcessFileName`,
+      },
+      {
+        table: "DeviceEvents",
+        label: "Clipboard Hijack",
+        goal: "This is the ClickFix fingerprint — the browser writes an encoded PowerShell command to the clipboard before the user opens Run. DeviceEvents with ActionType SetClipboardText shows the browser process overwriting the clipboard. The AdditionalFields will contain the clipboard content. Encoded commands are typically Base64 strings (beginning with AABB or similar) or hex strings. The presence of a clipboard write from the browser followed by a PowerShell execution from explorer within a short time window is a near-certain ClickFix indicator.",
+        pivotColumns: ["ActionType", "InitiatingProcessFileName", "InitiatingProcessId", "DeviceName"],
+        kql: `DeviceEvents
+| where Timestamp > ago(7d)
+| where ActionType in ("SetClipboardText","ProcessMemoryAccess")
+  and InitiatingProcessFileName in~ (
+    "chrome.exe","msedge.exe","firefox.exe")
+| project Timestamp, DeviceName, ActionType,
+          InitiatingProcessFileName, InitiatingProcessId,
+          AdditionalFields`,
+      },
+      {
+        table: "DeviceProcessEvents",
+        label: "Run Dialog Execution",
+        goal: "The definitive ClickFix indicator: cmd.exe or powershell.exe parented by explorer.exe (the Windows shell) or userinit.exe, with an encoded command-line argument. This pattern cannot occur in normal malware delivery — it requires the user to physically type or paste into the Run dialog. The parent explorer.exe → child powershell.exe relationship is specific to Win+R execution. ProcessCommandLine will contain -EncodedCommand, IEX, DownloadString, WebClient, mshta, or certutil — the download cradle. Base64-decode the EncodedCommand to recover the actual payload URL.",
+        pivotColumns: ["FileName", "ProcessCommandLine", "InitiatingProcessFileName", "SHA256", "DeviceName"],
+        kql: `DeviceProcessEvents
+| where Timestamp > ago(7d)
+| where FileName in~ (
+    "powershell.exe","cmd.exe","mshta.exe","certutil.exe")
+  and InitiatingProcessFileName in~ (
+    "explorer.exe","userinit.exe","WinLogonUI.exe")
+| where ProcessCommandLine has_any (
+    "-EncodedCommand","-enc ",
+    "IEX","Invoke-Expression","DownloadString",
+    "WebClient","certutil","bitsadmin","mshta http",
+    "curl.exe","wget.exe")
+| project Timestamp, DeviceName, FileName, ProcessCommandLine,
+          InitiatingProcessFileName, SHA256, AccountName
+| sort by Timestamp asc`,
+      },
+      {
+        table: "DeviceFileEvents",
+        label: "Payload Dropped to Disk",
+        goal: "The PowerShell cradle downloads and writes the second-stage payload to disk before executing it. Look for executables, DLLs, or scripts written to Temp, AppData, or ProgramData by PowerShell, cmd, certutil, or bitsadmin. The SHA256 of the dropped file is the key pivot for threat intel lookup and environmental scoping. Common payloads delivered via ClickFix include AsyncRAT, DarkGate, Lumma Stealer, NetSupport Manager RAT, and XWorm. certutil -urlcache -split -f writes directly to the path specified — check the command line for the drop path.",
+        pivotColumns: ["SHA256", "FileName", "FolderPath", "InitiatingProcessFileName", "DeviceName"],
+        kql: `DeviceFileEvents
+| where Timestamp > ago(7d)
+| where InitiatingProcessFileName in~ (
+    "powershell.exe","cmd.exe","mshta.exe","certutil.exe","bitsadmin.exe")
+  and ActionType == "FileCreated"
+| where FolderPath has_any (
+    @"\Temp\",@"\AppData\",@"\ProgramData\",@"\Windows\Temp\")
+  or FileName has_any (".exe",".dll",".ps1",".bat",".vbs",".hta")
+| project Timestamp, DeviceName, FileName, FolderPath,
+          SHA256, InitiatingProcessFileName, InitiatingProcessCommandLine`,
+      },
+      {
+        table: "DeviceRegistryEvents",
+        label: "Persistence Mechanism",
+        goal: "The dropped payload establishes persistence to survive reboots. ClickFix-delivered payloads commonly use: HKCU Run keys (survives user logon), Scheduled Tasks (survives reboots), Winlogon UserInit modification (survives logoff), or COM object hijacking (CLSID). Run key values pointing to Temp or AppData paths are the most common. RegistryValueData containing encoded strings or paths with random-looking filenames confirms a malicious persistence entry. Also check DeviceEvents for ScheduledTaskCreated actions from the cradle's child process.",
+        pivotColumns: ["RegistryKey", "RegistryValueData", "InitiatingProcessFileName", "DeviceName"],
+        kql: `DeviceRegistryEvents
+| where Timestamp > ago(7d)
+| where RegistryKey has_any (
+    @"Software\Microsoft\Windows\CurrentVersion\Run",
+    @"Software\Microsoft\Windows NT\CurrentVersion\Winlogon",
+    @"SOFTWARE\Classes\CLSID",
+    @"Software\Microsoft\Windows\CurrentVersion\RunOnce")
+  and ActionType in ("RegistryValueSet","RegistryKeyCreated")
+| where InitiatingProcessFileName !in~ (
+    "msiexec.exe","svchost.exe","explorer.exe")
+| project Timestamp, DeviceName, RegistryKey,
+          RegistryValueName, RegistryValueData,
+          InitiatingProcessFileName`,
+      },
+      {
+        table: "AlertInfo",
+        label: "Scope the Campaign",
+        goal: "⚠ NOTE — This is NOT a repeat of the opening triage step. The opening AlertInfo check seeds your investigation with known IOCs. This closing step answers two different questions: (1) How many devices were hit? (2) Which stages did Defender miss? ClickFix is a campaign technique — a single poisoned ad or SEO result can deliver the same payload to hundreds of devices simultaneously. Use the SHA256 from DeviceFileEvents to scope the full blast radius across 30 days. Every device on that list is a potential compromise regardless of whether an alert fired. The campaign delivery domain (from DeviceNetworkEvents) can be fed into Defender Threat Intelligence to find additional victims. The stages with no corresponding alert — typically the clipboard hijack and the browser visit to the landing page — are the detection gaps to hand to your detection engineering team.",
+        pivotColumns: ["AlertId", "Title", "Severity", "Category", "AttackTechniques", "ServiceSource"],
+        kql: `// Scope: all devices that received the ClickFix payload
+DeviceFileEvents
+| where Timestamp > ago(30d)
+| where SHA256 == "<payload_SHA256 from DeviceFileEvents>"
+| summarize FirstSeen = min(Timestamp), LastSeen = max(Timestamp),
+            DeviceCount = dcount(DeviceName),
+            Devices = make_set(DeviceName)
+  by SHA256, FileName
+---
+// All alerts associated with this campaign
+AlertInfo
+| where Timestamp > ago(30d)
+| where Title has_any (
+    "ClickFix","encoded command","LOLBin",
+    "suspicious PowerShell","mshta","certutil",
+    "download cradle","clipboard")
+| project Timestamp, AlertId, Title, Severity,
+          Category, AttackTechniques, ServiceSource`,
       },
     ],
   },
