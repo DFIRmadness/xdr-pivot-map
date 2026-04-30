@@ -66,8 +66,7 @@ export const TABLE_DETAILS = [
       { name: "InitiatingProcessFileName", note: "Process that opened the socket — should match expected behavior" },
       { name: "InitiatingProcessSHA256",   note: "Hash of the connecting process — pivot to DeviceFileEvents" },
       { name: "RemoteIPType",             note: "'Public' filters to external connections quickly" },
-      { name: "SentBytes",                 note: "Large values indicate potential exfiltration" },
-      { name: "ReceivedBytes",             note: "Large inbound transfers suggest staging / download" },
+      { name: "AdditionalFields",          note: "JSON blob — contains extra connection metadata by ActionType" },
     ],
     categories: ["network"],
   },
@@ -242,7 +241,7 @@ export const TABLE_DETAILS = [
       { name: "AccountUpn",             note: "Account making the change" },
       { name: "TargetAccountUpn",        note: "Account being modified" },
       { name: "TargetAccountDisplayName", note: "Display name of the modified account" },
-      { name: "ModifiedProperties",      note: "JSON showing before/after values of changed attributes" },
+      { name: "AdditionalFields",        note: "JSON containing before/after attribute values and other event detail" },
       { name: "DestinationDeviceName",   note: "Target resource in some event types" },
     ],
     categories: ["identity"],
@@ -265,21 +264,45 @@ export const TABLE_DETAILS = [
   },
 
   {
+    id: "EntraIdSignInEvents",
+    msDesc: "Interactive and non-interactive Microsoft Entra ID sign-in events, including device information, Conditional Access policy results, and risk signals.",
+    plain: "The primary cloud authentication table in XDR Advanced Hunting — the current replacement for the deprecated AADSignInEventsBeta. Every Entra ID sign-in attempt lands here: browser logins, desktop app auth, non-interactive token refreshes, and legacy auth flows. It captures whether MFA was satisfied, which Conditional Access policies applied, the device state, and Entra ID Protection risk scores. This is the first table to check for MFA fatigue attacks, impossible travel, legacy auth bypasses, token theft, and suspicious OAuth app sign-ins.",
+    sources: ["Microsoft Entra ID (Azure AD) — interactive and non-interactive sign-in logs", "Replaces AADSignInEventsBeta as of December 2025"],
+    topColumns: [
+      { name: "SessionId",                note: "Session token identifier — in AiTM attacks, find this on the Login:Reprocess event and use it to track the attacker via AADSessionId in CloudAppEvents AppAccessContext" },
+      { name: "AccountUpn",               note: "Authenticating user UPN — primary filter for account-based hunts" },
+      { name: "AccountObjectId",          note: "Stable Entra ID Object ID — join key to CloudAppEvents, GraphApiAuditEvents, IdentityInfo" },
+      { name: "IPAddress",                note: "Source IP — compare across sign-ins for impossible travel; unreliable post-AiTM as attacker routes through Microsoft infra" },
+      { name: "Country",                  note: "Geo location derived from IP — filter for unexpected countries" },
+      { name: "Application",              note: "App display name the user signed into — unexpected apps are a red flag" },
+      { name: "ApplicationId",            note: "App Client ID — pivot for OAuth app abuse and consent grants" },
+      { name: "ErrorCode",                note: "Int: 0 = success; 50074 = MFA required but not satisfied; 53003 = CA blocked" },
+      { name: "ConditionalAccessStatus",  note: "Int: 0=success, 1=failure, 2=notApplied, 3=unknown — notApplied reveals CA policy gaps" },
+      { name: "AuthenticationRequirement",note: "'multiFactorAuthentication' vs 'singleFactorAuthentication' — legacy auth shows single factor" },
+      { name: "RiskLevelAggregated",      note: "Int: 0=none, 1=low, 2=medium, 3=high, 4=hidden — Entra ID Protection score at sign-in time" },
+      { name: "IsManaged",                note: "Bool: true = corp-managed/Intune device; false = personal or unknown device" },
+      { name: "DeviceName",               note: "Device that signed in — correlate with DeviceInfo for endpoint context" },
+    ],
+    categories: ["identity"],
+  },
+
+  {
     id: "AADSignInEventsBeta",
     msDesc: "Interactive and non-interactive Entra ID (Azure AD) sign-in events, including MFA status, Conditional Access results, and risk signals.",
-    plain: "Every Azure AD / Entra ID sign-in attempt — web apps, desktop apps, legacy auth, and non-interactive token refreshes. Includes MFA outcome, Conditional Access policy results, risk scores, and the device used. This is your cloud-layer authentication table: MFA fatigue attacks, legacy auth bypasses, impossible travel, and token theft all show up here before anything else.",
+    plain: "⚠ Deprecated — replaced by EntraIdSignInEvents as of December 2025. Every Azure AD / Entra ID sign-in attempt — web apps, desktop apps, legacy auth, and non-interactive token refreshes. Includes MFA outcome, Conditional Access policy results, risk scores, and the device used. This is your cloud-layer authentication table: MFA fatigue attacks, legacy auth bypasses, impossible travel, and token theft all show up here before anything else. Migrate queries to EntraIdSignInEvents.",
     sources: ["Microsoft Entra ID (Azure AD) sign-in logs"],
     topColumns: [
+      { name: "SessionId",                   note: "Session token identifier — in AiTM attacks, the Login:Reprocess event carries the token issued to the attacker; matches AADSessionId in CloudAppEvents AppAccessContext" },
       { name: "AccountUpn",                  note: "Authenticating user" },
-      { name: "IPAddress",                   note: "Source IP — compare across sign-ins for impossible travel" },
+      { name: "IPAddress",                   note: "Source IP — compare across sign-ins for impossible travel; unreliable post-AiTM as attacker routes through Microsoft infra" },
       { name: "Country",                     note: "Geo location derived from IP" },
       { name: "Application",                 note: "Which app was accessed — Azure Portal, Exchange, SharePoint" },
       { name: "ApplicationId",              note: "App's Client ID — pivot for OAuth app abuse" },
       { name: "ErrorCode",                  note: "0 = success; 50074 = MFA required; 53003 = CA blocked" },
       { name: "ConditionalAccessStatus",    note: "Success / Failure / Not Applied — CA gaps here" },
       { name: "AuthenticationRequirement",  note: "MFA required vs. single-factor — legacy auth shows 'singleFactor'" },
-      { name: "RiskLevelDuringSignIn",       note: "None / Low / Medium / High — from Entra ID Protection" },
-      { name: "IsManaged",                  note: "False = unmanaged / unknown device" },
+      { name: "RiskLevelAggregated",         note: "0=none 1=low 10=medium 100=high — Entra ID Protection score at sign-in" },
+      { name: "IsManaged",                  note: "0 = unmanaged / unknown device; 1 = corp-managed" },
       { name: "AccountObjectId",            note: "Entra ID Object ID — join to CloudAppEvents, IdentityInfo" },
     ],
     categories: ["identity", "azure"],
@@ -287,16 +310,17 @@ export const TABLE_DETAILS = [
 
   {
     id: "GraphApiAuditEvents",
-    msDesc: "Microsoft Graph API calls made against the tenant, including the caller, action, and target resources.",
-    plain: "Every API call made through the Microsoft Graph API against your tenant — enumeration of users and groups, mail access, directory reads, and Azure resource queries. Attackers who compromise OAuth tokens or service principals use Graph API to silently enumerate and exfiltrate. This table exposes those automated API-level actions that don't appear in the user-facing audit logs.",
-    sources: ["Microsoft Graph API audit infrastructure"],
+    msDesc: "Microsoft Entra ID API requests made to Microsoft Graph API for resources in the tenant.",
+    plain: "Every API call made through the Microsoft Graph API against your tenant — enumeration of users and groups, mail access, directory reads, and Azure resource queries. Attackers who compromise OAuth tokens or service principals use Graph API to silently enumerate and exfiltrate. Note: this table has no ActionType or AccountUpn columns — use AccountObjectId for account filtering and RequestUri to see what endpoints were called.",
+    sources: ["Microsoft Entra ID Graph API audit infrastructure"],
     topColumns: [
-      { name: "ActionType",      note: "The API operation — read/write/delete and the resource type" },
-      { name: "AccountUpn",      note: "User or service principal making the call" },
-      { name: "AccountId",       note: "Object ID of the caller — pivot to IdentityInfo" },
-      { name: "IPAddress",       note: "Source IP of the API call" },
-      { name: "TargetResources", note: "What was accessed — users, groups, mail, files" },
-      { name: "AdditionalFields", note: "JSON with request parameters and response details" },
+      { name: "AccountObjectId",    note: "Entra ID Object ID of the caller — pivot to IdentityInfo" },
+      { name: "IPAddress",          note: "Source IP of the API call — attacker's IP differs from the victim's sign-in IP" },
+      { name: "RequestUri",         note: "The Graph API endpoint called — /users, /groups, /me/messages, /servicePrincipals" },
+      { name: "RequestMethod",      note: "HTTP verb — GET = read/enumerate; POST/PATCH/DELETE = write/modify" },
+      { name: "TargetWorkload",     note: "Which M365 service was targeted — Microsoft.Exchange, Microsoft.SharePoint, etc." },
+      { name: "ResponseStatusCode", note: "HTTP response code — 200=success, 403=blocked, 401=unauthorized" },
+      { name: "ApplicationId",      note: "The OAuth app or service principal making the call" },
     ],
     categories: ["identity", "azure"],
   },
@@ -314,6 +338,24 @@ export const TABLE_DETAILS = [
       { name: "AccountDomain",    note: "AD domain the account belongs to" },
     ],
     categories: ["identity"],
+  },
+
+  {
+    id: "EntraIdSpnSignInEvents",
+    msDesc: "Sign-in events for service principals and managed identities in Microsoft Entra ID.",
+    plain: "The non-human authentication log — every time an application, automation script, or managed identity authenticates against Entra ID. Where EntraIdSignInEvents covers user sign-ins, this table covers app-to-app and service-to-resource auth flows. Critical for detecting OAuth app abuse, over-privileged service principals, credential stuffing against app registrations, and compromised managed identities used to pivot within Azure. Attackers who compromise a service principal can use it to silently access resources for months without triggering user-based detections.",
+    sources: ["Microsoft Entra ID — service principal and managed identity authentication logs"],
+    topColumns: [
+      { name: "ServicePrincipalName", note: "Display name of the app or SPN authenticating" },
+      { name: "ServicePrincipalId",  note: "Object ID of the SPN — join to CloudAuditEvents, GraphApiAuditEvents" },
+      { name: "ApplicationId",       note: "App Client ID — pivot to identify the registered application" },
+      { name: "IPAddress",           note: "Source IP — unexpected IPs for a managed identity are a red flag" },
+      { name: "ResourceDisplayName", note: "What the SPN was accessing — Azure Key Vault, Microsoft Graph, etc." },
+      { name: "ResourceId",          note: "ARM resource ID of the target" },
+      { name: "ErrorCode",           note: "0 = success; non-zero = auth failure code" },
+      { name: "ConditionalAccessStatus", note: "Int: 0=success, 1=failure, 2=notApplied — CA coverage for app auth" },
+    ],
+    categories: ["identity", "azure"],
   },
 
   // ── Email ─────────────────────────────────────────────────────────────────
@@ -417,6 +459,54 @@ export const TABLE_DETAILS = [
     categories: ["email"],
   },
 
+  // ── Teams ─────────────────────────────────────────────────────────────────
+
+  {
+    id: "MessageEvents",
+    msDesc: "Microsoft Teams messages at the time of delivery, including threat verdicts and delivery actions from Microsoft Defender for Office 365.",
+    plain: "The Teams equivalent of EmailEvents — every message sent in Teams channels and chats with its delivery outcome and threat verdict. Phishing lures, malware links, and social engineering messages distributed via Teams appear here. NetworkMessageId is the join key to MessageUrlInfo and MessagePostDeliveryEvents, mirroring the exact same pattern as the Email table family.",
+    sources: ["Microsoft Defender for Office 365 (MDO) — Teams protection"],
+    topColumns: [
+      { name: "NetworkMessageId",      note: "Unique message ID — joins to MessageUrlInfo and MessagePostDeliveryEvents" },
+      { name: "SenderFromAddress",     note: "Sender display address" },
+      { name: "RecipientEmailAddress", note: "Recipient UPN — pivot to IdentityInfo" },
+      { name: "DeliveryAction",        note: "Delivered / Blocked — whether Teams allowed the message" },
+      { name: "ThreatTypes",           note: "Phish / Malware / Spam — what MDO detected in the message" },
+      { name: "DeliveryLocation",      note: "Where the message landed — Teams inbox or blocked" },
+      { name: "InternetMessageId",     note: "RFC-standard message ID for cross-system correlation" },
+    ],
+    categories: ["email"],
+  },
+
+  {
+    id: "MessagePostDeliveryEvents",
+    msDesc: "Post-delivery security actions taken on Microsoft Teams messages, such as zero-hour auto purge (ZAP) and manual remediation.",
+    plain: "The Teams equivalent of EmailPostDeliveryEvents — security actions taken on Teams messages after initial delivery. When MDO retroactively identifies a Teams message as malicious and ZAPs it, the action lands here. Useful for confirming whether a suspicious Teams lure was successfully remediated, and for identifying victims who may have seen the message before it was pulled.",
+    sources: ["Microsoft Defender for Office 365 (MDO) — Teams protection"],
+    topColumns: [
+      { name: "NetworkMessageId",      note: "Join to MessageEvents for the original delivery record" },
+      { name: "RecipientEmailAddress", note: "Who received the affected message" },
+      { name: "Action",                note: "ZAP / ManualRemediation / Replaced — what was done to the message" },
+      { name: "ActionType",            note: "Specific remediation sub-type" },
+      { name: "DeliveryLocation",      note: "Where the message was when the action was taken" },
+    ],
+    categories: ["email"],
+  },
+
+  {
+    id: "MessageUrlInfo",
+    msDesc: "URLs extracted from Microsoft Teams messages processed by Microsoft Defender for Office 365 Safe Links.",
+    plain: "The Teams equivalent of EmailUrlInfo — every URL found in a Teams message. Safe Links wraps and detonates these URLs on click. Cross-referencing with UrlClickEvents reveals whether a recipient actually clicked a malicious link delivered via Teams. The same attacker infrastructure often appears across both Email and Teams campaigns simultaneously.",
+    sources: ["Microsoft Defender for Office 365 (MDO) — Safe Links for Teams"],
+    topColumns: [
+      { name: "NetworkMessageId", note: "Join to MessageEvents for delivery context" },
+      { name: "Url",              note: "Full URL found in the Teams message" },
+      { name: "UrlDomain",        note: "Domain portion — pivot to UrlClickEvents, EmailUrlInfo for cross-channel matching" },
+      { name: "UrlScheme",        note: "http / https — non-https links are suspicious in modern comms" },
+    ],
+    categories: ["email", "network"],
+  },
+
   // ── Cloud ─────────────────────────────────────────────────────────────────
 
   {
@@ -440,34 +530,52 @@ export const TABLE_DETAILS = [
   {
     id: "CloudAuditEvents",
     msDesc: "Audit events from cloud platforms monitored by Microsoft Defender for Cloud, including Azure resource operations.",
-    plain: "Azure control-plane activity — what happened to Azure resources themselves rather than what's running inside them. VM creation, deletion, extension writes, role assignment changes, policy modifications, and Azure Resource Manager (ARM) operations all appear here. When attackers get into your Azure subscription, this table shows them spinning up VMs, running commands via Run Command, or exfiltrating data via storage exports.",
+    plain: "Azure control-plane activity — what happened to Azure resources themselves rather than what's running inside them. VM creation, deletion, extension writes, role assignment changes, and ARM operations all appear here. Important: this table has no AccountUpn or AccountId columns — the caller identity is embedded inside RawEventData as RawEventData['caller']. Use OperationName to filter specific operations; ActionType is only a generic category (Create/Read/Update/Delete).",
     sources: ["Microsoft Defender for Cloud (MDfC)", "Azure Monitor / Azure Activity Log", "Azure Resource Manager (ARM) audit"],
     topColumns: [
-      { name: "ActionType",    note: "The ARM operation — virtualMachines/runCommand/action is a critical one" },
-      { name: "AccountUpn",   note: "Identity that performed the action" },
-      { name: "AccountId",    note: "Object ID or service principal ID" },
-      { name: "ResourceId",   note: "Full ARM resource path of the affected resource" },
-      { name: "ResourceType", note: "Microsoft.Compute/virtualMachines, Microsoft.Storage/..., etc." },
-      { name: "IPAddress",    note: "Source IP of the API call" },
-      { name: "AdditionalFields", note: "JSON with operation request/response details" },
+      { name: "OperationName",  note: "Specific ARM operation name — e.g. 'Microsoft.Compute/virtualMachines/runCommand/action'; use this, not ActionType, to filter for specific ops" },
+      { name: "ActionType",     note: "Generic category only: Create / Read / Update / Delete / Other — not the specific operation name" },
+      { name: "ResourceId",     note: "Full ARM resource path of the affected resource" },
+      { name: "IPAddress",      note: "Source IP of the API call — may be attacker infrastructure" },
+      { name: "DataSource",     note: "Cloud platform: Azure, AWS, GCP, Kubernetes" },
+      { name: "RawEventData",   note: "Full JSON event record — account/caller info is inside here as RawEventData['caller']" },
+      { name: "AdditionalFields", note: "JSON with supplemental event details" },
     ],
     categories: ["azure"],
   },
 
   {
     id: "CloudProcessEvents",
-    msDesc: "Process events from cloud workloads and containers monitored by Microsoft Defender for Cloud.",
-    plain: "Process execution inside Azure VMs, containers, and cloud workloads — like DeviceProcessEvents but for cloud compute. When an attacker executes commands on an Azure VM (via Run Command, custom script extension, or a shell session), those process events appear here. Also captures suspicious processes in AKS containers and other cloud-hosted workloads.",
-    sources: ["Microsoft Defender for Cloud (MDfC) — server and container agents", "Azure Monitor agent"],
+    msDesc: "Process events for various cloud platforms protected by Microsoft Defender for Containers, including AKS, EKS, and GKE.",
+    plain: "Process execution inside Kubernetes containers (AKS, Amazon EKS, Google GKE) — not Azure VMs. If a malicious process runs inside a pod, this table records it. Does not use DeviceName/DeviceId — instead identifies the workload by namespace, pod name, and container ID. For Azure VM process events, see DeviceProcessEvents (requires Defender for Servers).",
+    sources: ["Microsoft Defender for Cloud (MDfC) — Defender for Containers", "Kubernetes audit and runtime sensors"],
     topColumns: [
-      { name: "FileName",                      note: "Spawned process name" },
-      { name: "ProcessCommandLine",            note: "Full command line executed in the cloud workload" },
-      { name: "InitiatingProcessFileName",     note: "What launched the process — Azure Guest Agent is a red flag" },
-      { name: "AccountName",                   note: "User context inside the VM or container" },
-      { name: "DeviceName",                    note: "VM or container hostname" },
-      { name: "DeviceId",                      note: "Unique identifier of the cloud compute resource" },
+      { name: "ProcessCommandLine",       note: "Full command line executed inside the container" },
+      { name: "ProcessName",              note: "Name of the spawned process" },
+      { name: "ParentProcessName",        note: "Parent process that launched this one — use instead of InitiatingProcessFileName" },
+      { name: "AccountName",              note: "User context inside the container" },
+      { name: "KubernetesNamespace",      note: "Kubernetes namespace — identifies the workload area" },
+      { name: "KubernetesPodName",        note: "Pod name — pivot to identify the affected deployment" },
+      { name: "ContainerName",            note: "Container name within the pod" },
+      { name: "AzureResourceId",          note: "Full ARM resource ID of the AKS cluster (for Azure deployments)" },
     ],
     categories: ["processes", "azure"],
+  },
+
+  {
+    id: "CloudDnsEvents",
+    msDesc: "DNS queries and responses from cloud infrastructure workloads, including container and Kubernetes environments.",
+    plain: "DNS telemetry from cloud-native workloads running in AKS (Azure), EKS (AWS), and GKE (GCP). DNS tunneling, C2 beaconing via DNS, and data exfiltration through high-volume DNS queries all appear here if they originate from containerised workloads. Complements DeviceNetworkEvents (which covers endpoint DNS) for organisations running cloud workloads. Preview table — availability varies by tenant.",
+    sources: ["Microsoft Defender for Cloud — cloud container workload protection (AKS/EKS/GKE)", "Preview — may not be available in all tenants"],
+    topColumns: [
+      { name: "DeviceId",                    note: "Container or pod ID — join to CloudProcessEvents for process context" },
+      { name: "DnsQueryName",                note: "The queried hostname — look for DGA patterns, long subdomains (tunnelling), suspicious TLDs" },
+      { name: "DnsQueryType",                note: "A / AAAA / MX / TXT / CNAME — TXT queries can carry tunnelled data" },
+      { name: "RemoteIPType",                note: "Public / Private — public resolvers contacted from inside a cluster are suspicious" },
+      { name: "InitiatingProcessFileName",   note: "Process that made the DNS request" },
+      { name: "InitiatingProcessAccountName",note: "Account context of the querying process" },
+    ],
+    categories: ["network", "azure"],
   },
 
   // ── Alerts ────────────────────────────────────────────────────────────────
@@ -558,6 +666,56 @@ export const TABLE_DETAILS = [
     categories: ["processes", "identity"],
   },
 
+  {
+    id: "DeviceTvmBrowserExtensions",
+    msDesc: "Browser extension inventory from Threat and Vulnerability Management, including extension details and activation status.",
+    plain: "A complete inventory of every browser extension installed across your endpoints. Attackers abuse browser extensions for credential harvesting, cookie theft, and persistent access — extensions run with elevated privileges inside the browser session and can intercept all web traffic. Use this table to find extensions that were silently installed by malware, identify high-risk permissions (access to all websites), or track which devices have a known malicious extension ID. Preview table — availability varies by tenant.",
+    sources: ["Microsoft Defender for Endpoint (MDE) — Threat and Vulnerability Management (TVM) scanner", "Preview — may not be available in all tenants"],
+    topColumns: [
+      { name: "ExtensionId",          note: "Browser extension store ID — pivot to threat intel for known malicious IDs" },
+      { name: "ExtensionName",        note: "Display name of the extension" },
+      { name: "BrowserName",          note: "Chrome / Edge / Firefox — scope to managed browser" },
+      { name: "IsActivated",          note: "True = extension is currently active in the browser" },
+      { name: "ExtensionDescription", note: "Self-reported description — fabricated descriptions are a red flag" },
+      { name: "DeviceName",           note: "Machine with the extension installed" },
+      { name: "DeviceId",             note: "Join to DeviceInfo for machine context" },
+    ],
+    categories: ["processes"],
+  },
+
+  {
+    id: "DeviceTvmCertificateInfo",
+    msDesc: "Certificate inventory from Threat and Vulnerability Management, covering certificates installed on devices.",
+    plain: "The certificate store inventory for all endpoints. Certificates matter in IR for two reasons: malicious installers often install rogue root CAs to silently intercept TLS (SSL inspection by malware), and expired or misconfigured certificates create pivoting opportunities. Use this table to find untrusted root certificates silently added to endpoint trust stores, or to identify malware that signs itself with an expired or revoked certificate. Preview table — availability varies by tenant.",
+    sources: ["Microsoft Defender for Endpoint (MDE) — Threat and Vulnerability Management (TVM) scanner", "Preview — may not be available in all tenants"],
+    topColumns: [
+      { name: "Thumbprint",               note: "SHA-1 thumbprint — primary identifier, join to DeviceFileCertificateInfo" },
+      { name: "Subject",                  note: "Certificate subject — look for generic or suspicious subject names in root CAs" },
+      { name: "Issuer",                   note: "Who signed the cert — self-signed or unknown issuer = high suspicion" },
+      { name: "NotAfter",                 note: "Expiry date — long-lived certs from unknown CAs are a red flag" },
+      { name: "IsRootCa",                 note: "True = installed as a trusted root CA — rogue roots intercept TLS" },
+      { name: "SignatureAlgorithm",       note: "SHA-256 vs. weaker SHA-1 — legacy algorithms indicate old malware" },
+      { name: "DeviceName",               note: "Machine where this certificate is installed" },
+    ],
+    categories: ["files"],
+  },
+
+  {
+    id: "DeviceTvmHardwareFirmware",
+    msDesc: "Hardware and firmware inventory from Threat and Vulnerability Management, including BIOS and component version information.",
+    plain: "Firmware-level inventory for supply chain risk and persistent implant detection. BIOS implants and UEFI rootkits survive OS reinstalls and are invisible to conventional AV. This table lets you find devices running outdated BIOS versions with known vulnerabilities, identify firmware version inconsistencies across a device fleet that might indicate tampering, and baseline normal firmware across hardware models. Preview table — availability varies by tenant.",
+    sources: ["Microsoft Defender for Endpoint (MDE) — Threat and Vulnerability Management (TVM) scanner", "Preview — may not be available in all tenants"],
+    topColumns: [
+      { name: "ComponentType",    note: "Bios / Baseboard / VideoController / NetworkAdapter — filter for BIOS/UEFI hunts" },
+      { name: "Manufacturer",     note: "Firmware manufacturer — compare against known-good vendor list" },
+      { name: "ComponentName",    note: "Specific firmware component name" },
+      { name: "ComponentVersion", note: "Version string — compare against devices in same model fleet for inconsistencies" },
+      { name: "DeviceName",       note: "Machine with this firmware component" },
+      { name: "DeviceId",         note: "Join to DeviceInfo for full hardware context" },
+    ],
+    categories: ["processes"],
+  },
+
   // ── Purview ───────────────────────────────────────────────────────────────
 
   {
@@ -575,6 +733,118 @@ export const TABLE_DETAILS = [
       { name: "DestinationLocation", note: "Where the data went — USB, web, printer, external email" },
     ],
     categories: ["files", "office"],
+  },
+
+  // ── Behaviors / UEBA ─────────────────────────────────────────────────────
+
+  {
+    id: "BehaviorInfo",
+    msDesc: "Behavioral detections from UEBA (User and Entity Behavior Analytics), correlating signals across multiple data sources into anomaly-based detections.",
+    plain: "The UEBA anomaly layer — detections that fire not because of a single known-bad signature, but because a pattern of activity is statistically unusual for this user or device. Defender correlates signals from MDI, MDCA, Entra ID Protection, and endpoint telemetry to surface behaviours like impossible travel, unusual data access volumes, sudden privilege escalation, or atypical geographic access. BehaviorId is the join key to BehaviorEntities for the specific accounts and devices involved. Useful for surfacing slow, stealthy attacks that evade rule-based detections. Preview table — availability varies by tenant.",
+    sources: ["Microsoft Defender UEBA engine — correlates MDI, MDCA, Entra ID Protection, MDE signals", "Preview — may not be available in all tenants"],
+    topColumns: [
+      { name: "BehaviorId",        note: "Unique behavior ID — join to BehaviorEntities for the affected accounts/devices" },
+      { name: "Category",          note: "Anomaly category — InitialAccess, Exfiltration, LateralMovement, etc." },
+      { name: "Description",       note: "Human-readable explanation of why this fired — read this for context" },
+      { name: "Severity",          note: "High / Medium / Low — UEBA anomaly confidence level" },
+      { name: "AccountUpn",        note: "Primary user associated with the anomaly" },
+      { name: "DeviceName",        note: "Primary device involved, if applicable" },
+      { name: "ActionType",        note: "Specific anomaly type identifier" },
+      { name: "DetectionSource",   note: "Which UEBA engine surfaced the behavior" },
+    ],
+    categories: ["identity", "processes"],
+  },
+
+  {
+    id: "BehaviorEntities",
+    msDesc: "Entities (devices, users, files, IPs) associated with UEBA behavioral detections, linked to BehaviorInfo via BehaviorId.",
+    plain: "The entity manifest for each UEBA detection — the specific users, devices, files, and IPs that contributed to or were affected by a behavior flagged in BehaviorInfo. Join on BehaviorId to move from 'this behavior fired' to 'here are the exact accounts and machines involved'. EntityType tells you what kind of entity each row describes, and the corresponding identity/device/IP columns are populated accordingly.",
+    sources: ["Microsoft Defender UEBA engine", "Preview — may not be available in all tenants"],
+    topColumns: [
+      { name: "BehaviorId",       note: "Join to BehaviorInfo for the anomaly description and severity" },
+      { name: "EntityType",       note: "User / Device / File / Ip / Process — what this entity row describes" },
+      { name: "EntityRole",       note: "Actor / Target / Related — the entity's role in the behavior" },
+      { name: "AccountUpn",       note: "Populated when EntityType = User — pivot to EntraIdSignInEvents / CloudAppEvents" },
+      { name: "AccountObjectId",  note: "Entra Object ID when EntityType = User" },
+      { name: "DeviceId",         note: "Populated when EntityType = Device — join to DeviceInfo" },
+      { name: "DeviceName",       note: "Device hostname when EntityType = Device" },
+      { name: "IPAddress",        note: "Populated when EntityType = Ip — pivot to network tables" },
+      { name: "SHA256",           note: "Populated when EntityType = File — pivot to DeviceFileEvents" },
+    ],
+    categories: ["identity", "network"],
+  },
+
+  // ── Security Exposure Management ──────────────────────────────────────────
+
+  {
+    id: "ExposureGraphNodes",
+    msDesc: "Entity nodes in the Microsoft Security Exposure Management attack surface graph, representing devices, identities, cloud assets, and other resources.",
+    plain: "The attack surface inventory layer — every entity that Security Exposure Management tracks as part of your attack surface. Each node represents something an attacker could target or use as a stepping stone: endpoints, user accounts, service principals, cloud resources, and network assets. NodeProperties contains the entity's specific attributes. Use ExposureScore and AttackPaths count to prioritise which nodes are the highest-risk entry points or lateral movement targets in your environment.",
+    sources: ["Microsoft Security Exposure Management — attack surface graph", "Aggregates data from MDE, Entra ID, Azure, MDI"],
+    topColumns: [
+      { name: "NodeId",         note: "Stable ID for this node — join key for ExposureGraphEdges" },
+      { name: "NodeLabel",      note: "Entity type — Device / User / AzureResource / CloudResource / etc." },
+      { name: "NodeName",       note: "Display name of the entity" },
+      { name: "Categories",     note: "Classification tags — Internet-facing, High Value, Crown Jewel, etc." },
+      { name: "EntityIds",      note: "JSON mapping to canonical IDs in other tables: DeviceId, AccountObjectId, etc." },
+      { name: "NodeProperties", note: "JSON bag of all entity attributes — OS, exposure score, path count, etc." },
+    ],
+    categories: ["identity", "network"],
+  },
+
+  {
+    id: "ExposureGraphEdges",
+    msDesc: "Attack path relationships between entity nodes in the Security Exposure Management attack surface graph.",
+    plain: "The edges of the attack surface graph — every relationship between nodes that an attacker could traverse. An edge from a user node to a device node might mean 'this user has local admin rights on this device'. An edge from a device to an Azure resource might mean 'this machine's managed identity can read Key Vault secrets'. Querying edges from a specific source node reveals the lateral movement paths available to a compromised account or device.",
+    sources: ["Microsoft Security Exposure Management — attack path analysis"],
+    topColumns: [
+      { name: "SourceNodeId",   note: "Starting entity — join to ExposureGraphNodes for source details" },
+      { name: "TargetNodeId",   note: "Reachable entity — join to ExposureGraphNodes for target details" },
+      { name: "EdgeLabel",      note: "Type of relationship — 'CanLogonTo', 'HasAdmin', 'CanReadSecrets', etc." },
+      { name: "SourceNodeName", note: "Display name of the source entity" },
+      { name: "TargetNodeName", note: "Display name of the target entity" },
+      { name: "Categories",     note: "Tags on the relationship — Critical Path, Overprivileged, etc." },
+    ],
+    categories: ["network", "identity"],
+  },
+
+  // ── Azure Sentinel / Log Analytics ────────────────────────────────────────
+
+  {
+    id: "SigninLogs",
+    msDesc: "The SigninLogs table in Azure Monitor contains sign-in activity reports for Azure Active Directory. It includes details of each interactive and non-interactive sign-in attempt, including authentication protocol, conditional access result, and risk level.",
+    plain: "Entra ID sign-in logs as they appear in Azure Monitor / Sentinel — the same underlying data as EntraIdSignInEvents in XDR, but in the Log Analytics schema with different column names. The critical column for device code phishing hunts is AuthenticationProtocol, which takes the value 'deviceCode' — something XDR's EntraIdSignInEvents does not expose directly. Run these queries in your Log Analytics workspace or Microsoft Sentinel instance, not in XDR Advanced Hunting.",
+    sources: ["Microsoft Entra ID (via Azure Monitor / Log Analytics data connector)", "Requires: Microsoft Entra ID Diagnostic Settings → Send to Log Analytics"],
+    topColumns: [
+      { name: "AuthenticationProtocol",  note: "The key device code filter: 'deviceCode' | other values: oAuth2, ropc, wsFederation, saml20, none" },
+      { name: "UserPrincipalName",        note: "UPN of the signing-in user — joins to AccountUpn in CloudAppEvents / EntraIdSignInEvents" },
+      { name: "IPAddress",                note: "Client IP — compare against post-sign-in CloudAppEvents IP to detect token theft (IP mismatch)" },
+      { name: "ResultType",               note: "String '0' = success; non-zero = failure code (different from XDR ErrorCode)" },
+      { name: "AppDisplayName",           note: "Application the user signed into — unexpected apps are a red flag" },
+      { name: "ConditionalAccessStatus",  note: "String: 'success' / 'failure' / 'notApplied' — notApplied means a CA policy gap; note: XDR uses integers for this column" },
+      { name: "RiskLevelAggregated",      note: "String: 'none' / 'low' / 'medium' / 'high' / 'hidden' — note: XDR uses integers for risk fields" },
+      { name: "IsInteractive",            note: "True for browser/app interactive sign-ins (device code shows as interactive)" },
+      { name: "CorrelationId",            note: "Correlates related sign-in events for the same auth session" },
+    ],
+    categories: ["identity", "azure"],
+  },
+
+  {
+    id: "OfficeActivity",
+    msDesc: "The OfficeActivity table contains audit logs from Exchange Online, SharePoint Online, OneDrive for Business, and Microsoft Teams as collected via the Office 365 Management Activity API and stored in Azure Monitor / Log Analytics.",
+    plain: "Office 365 audit trail in Sentinel — covers all four major workloads (Exchange, SharePoint, OneDrive, Teams) in a single table, filtered by the Workload column. Functionally equivalent to CloudAppEvents in XDR Advanced Hunting, but lives in Log Analytics and uses different column naming conventions (UserId instead of AccountUpn, ClientIP instead of IPAddress, TimeGenerated instead of Timestamp). Useful when an organisation ingests logs into Sentinel but not XDR, or when you need historical data beyond the XDR 30-day retention window.",
+    sources: ["Office 365 Management Activity API (Exchange, SharePoint, OneDrive, Teams)", "Requires: Microsoft Sentinel Office 365 data connector"],
+    topColumns: [
+      { name: "UserId",        note: "UPN of the acting user — maps to AccountUpn in CloudAppEvents / EntraIdSignInEvents" },
+      { name: "Operation",     note: "Specific action: MailboxLogin, FileAccessed, UpdateCalendarDelegation, New-InboxRule, Send, etc." },
+      { name: "Workload",      note: "Exchange / SharePoint / OneDrive / MicrosoftTeams — primary scope filter" },
+      { name: "ClientIP",      note: "Client IP address — maps to IPAddress in XDR tables" },
+      { name: "ObjectId",      note: "Path or URL of the object involved in the operation" },
+      { name: "SiteUrl",       note: "SharePoint/OneDrive site URL — only present for SharePoint/OneDrive operations" },
+      { name: "UserType",      note: "Regular / Guest / Admin / ServiceAccount — flag elevated or guest access" },
+      { name: "TimeGenerated", note: "Timestamp in Log Analytics format — use TimeGenerated not Timestamp in KQL" },
+    ],
+    categories: ["office", "azure"],
   },
 
 ];

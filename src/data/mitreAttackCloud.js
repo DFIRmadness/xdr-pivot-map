@@ -81,7 +81,7 @@ export const CLOUD_TECHNIQUES = [
     xdrMappings: [
       {
         table: "EntraIdSignInEvents",
-        columns: ["AccountUpn", "IPAddress", "Country", "RiskLevelDuringSignIn", "ConditionalAccessStatus", "ErrorCode"],
+        columns: ["AccountUpn", "IPAddress", "Country", "RiskLevelAggregated", "ConditionalAccessStatus", "ErrorCode"],
         kql: `// MFA approval immediately following a period of repeated failed attempts
 // suggests victim was socially engineered over phone
 EntraIdSignInEvents
@@ -93,7 +93,7 @@ EntraIdSignInEvents
     | summarize FailedMFA = count() by AccountUpn, bin(Timestamp, 30m)
     | where FailedMFA >= 3
 ) on AccountUpn
-| project Timestamp, AccountUpn, IPAddress, Country, RiskLevelDuringSignIn`,
+| project Timestamp, AccountUpn, IPAddress, Country, RiskLevelAggregated`,
       },
       {
         table: "AlertInfo",
@@ -117,7 +117,7 @@ EntraIdSignInEvents
     xdrMappings: [
       {
         table: "EntraIdSignInEvents",
-        columns: ["AccountUpn", "IPAddress", "Country", "IsManaged", "Application", "RiskLevelDuringSignIn"],
+        columns: ["AccountUpn", "IPAddress", "Country", "IsManaged", "Application", "RiskLevelAggregated"],
         kql: `// Sign-ins from service provider tenants via cross-tenant delegation
 EntraIdSignInEvents
 | where Timestamp > ago(7d)
@@ -125,18 +125,18 @@ EntraIdSignInEvents
 // HomeTenantId != resource tenant = cross-tenant / partner sign-in
 | where isnotempty(HomeTenantId) and HomeTenantId != TenantId
 | project Timestamp, AccountUpn, IPAddress, Country,
-          IsManaged, Application, HomeTenantId, RiskLevelDuringSignIn`,
+          IsManaged, Application, HomeTenantId, RiskLevelAggregated`,
       },
       {
         table: "CloudAuditEvents",
-        columns: ["AccountUpn", "ActionType", "ResourceId", "IPAddress", "AdditionalFields"],
+        columns: ["AccountObjectId", "OperationName", "ResourceId", "IPAddress", "AdditionalFields"],
         kql: `// Activity by delegated admin (GDAP/DAP) partner accounts
 CloudAuditEvents
 | where Timestamp > ago(7d)
 | extend Props = parse_json(AdditionalFields)
 | where tostring(Props.delegatedAdmin) == "true"
-    or ActionType has "delegatedAdminRelationship"
-| project Timestamp, AccountUpn, ActionType,
+    or OperationName has "delegatedAdminRelationship"
+| project Timestamp, AccountObjectId, OperationName,
           ResourceId, IPAddress, Props`,
       },
     ],
@@ -151,15 +151,15 @@ CloudAuditEvents
     xdrMappings: [
       {
         table: "EntraIdSignInEvents",
-        columns: ["AccountUpn", "IPAddress", "Country", "IsAnonymousProxy", "RiskLevelDuringSignIn", "ConditionalAccessStatus", "ErrorCode"],
+        columns: ["AccountUpn", "IPAddress", "Country", "IsAnonymousProxy", "RiskLevelAggregated", "ConditionalAccessStatus", "ErrorCode"],
         kql: `EntraIdSignInEvents
 | where Timestamp > ago(1d)
 | where ErrorCode == 0
 | where IsAnonymousProxy == true
-    or RiskLevelDuringSignIn in ("high","medium")
+    or RiskLevelAggregated >= 10
     or ConditionalAccessStatus == "notApplied"
 | project Timestamp, AccountUpn, IPAddress, Country,
-          IsAnonymousProxy, RiskLevelDuringSignIn, ConditionalAccessStatus`,
+          IsAnonymousProxy, RiskLevelAggregated, ConditionalAccessStatus`,
       },
       {
         table: "CloudAppEvents",
@@ -197,7 +197,7 @@ CloudAuditEvents
       },
       {
         table: "EntraIdSignInEvents",
-        columns: ["AccountUpn", "IPAddress", "Country", "SessionId", "AuthenticationRequirement", "RiskLevelDuringSignIn"],
+        columns: ["AccountUpn", "IPAddress", "Country", "SessionId", "AuthenticationRequirement", "RiskLevelAggregated"],
         kql: `// Stolen token replay: same SessionId used from two different IPs
 EntraIdSignInEvents
 | where Timestamp > ago(1d)
@@ -222,28 +222,28 @@ EntraIdSignInEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountUpn", "ActionType", "ResourceId", "ResourceType", "IPAddress", "AdditionalFields"],
+        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress", "AdditionalFields"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
-| where ActionType has_any (
+| where OperationName has_any (
     "Microsoft.Compute/virtualMachines/runCommand/action",
     "microsoft.compute/virtualmachines/runcommand",
     "Microsoft.Compute/virtualMachines/extensions/write",
     "CustomScriptExtension","RunPowerShellScript","RunShellScript")
 | extend Details = parse_json(AdditionalFields)
-| project Timestamp, AccountUpn, ActionType, ResourceId, IPAddress, Details`,
+| project Timestamp, AccountObjectId, OperationName, ResourceId, IPAddress, Details`,
       },
       {
-        table: "CloudProcessEvents",
-        columns: ["DeviceName", "DeviceId", "FileName", "ProcessCommandLine", "InitiatingProcessFileName", "AccountName"],
-        kql: `CloudProcessEvents
+        table: "DeviceProcessEvents",
+        columns: ["DeviceName", "FileName", "ProcessCommandLine", "InitiatingProcessFileName", "AccountName"],
+        kql: `// Run Command spawns only on MDE-onboarded VMs (Defender for Servers Plan 2)
+DeviceProcessEvents
 | where Timestamp > ago(7d)
-// Run Command spawns through the Azure Guest Agent on the VM
 | where InitiatingProcessFileName in~ (
     "WindowsAzureGuestAgent.exe","WaAppAgent.exe",
-    "waagent","CustomScriptHandler","RunCommandExtension")
+    "waagent","CustomScriptHandler","RunCommandExtension","GuestProxyAgent.exe")
 | where FileName in~ (
-    "cmd.exe","powershell.exe","bash","sh",
+    "cmd.exe","powershell.exe","pwsh.exe","bash","sh",
     "python.exe","python3","whoami.exe","net.exe","curl","wget")
 | project Timestamp, DeviceName, FileName,
           ProcessCommandLine, InitiatingProcessFileName, AccountName`,
@@ -260,15 +260,15 @@ EntraIdSignInEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountUpn", "ActionType", "ResourceId", "ResourceType", "IPAddress", "AdditionalFields"],
+        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress", "AdditionalFields"],
         kql: `// Burst of API write/execute operations in short window = scripted API abuse
 CloudAuditEvents
 | where Timestamp > ago(7d)
-| where ActionType !has "/read"
+| where ActionType != "Read"
 | summarize ApiCalls = count(),
-            Actions = make_set(ActionType, 20),
-            Resources = make_set(ResourceType, 10)
-    by AccountUpn, IPAddress, bin(Timestamp, 10m)
+            Operations = make_set(OperationName, 20),
+            Resources = make_set(ObjectType, 10)
+    by AccountObjectId, IPAddress, bin(Timestamp, 10m)
 | where ApiCalls > 30
 | order by ApiCalls desc`,
       },
@@ -300,18 +300,18 @@ CloudAppEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountUpn", "ActionType", "ResourceId", "ResourceType", "IPAddress", "AdditionalFields"],
+        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress", "AdditionalFields"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
-| where ActionType has_any (
+| where OperationName has_any (
     "Microsoft.Web/sites/functions/write",
     "Microsoft.Web/sites/functions/run/action",
     "Microsoft.Logic/workflows/write",
     "Microsoft.Logic/workflows/triggers/run/action",
     "Microsoft.Automation/automationAccounts/runbooks/write",
     "Microsoft.Automation/automationAccounts/jobs/write")
-| project Timestamp, AccountUpn, ActionType,
-          ResourceId, ResourceType, IPAddress`,
+| project Timestamp, AccountObjectId, OperationName,
+          ResourceId, ObjectType, IPAddress`,
       },
       {
         table: "AlertInfo",
@@ -337,16 +337,15 @@ CloudAppEvents
     xdrMappings: [
       {
         table: "GraphApiAuditEvents",
-        columns: ["AccountUpn", "ActionType", "IPAddress", "TargetResources", "AdditionalFields"],
+        columns: ["AccountObjectId", "RequestMethod", "IPAddress", "RequestUri", "TargetWorkload", "ResponseStatusCode"],
         kql: `GraphApiAuditEvents
 | where Timestamp > ago(7d)
-| where ActionType in (
-    "Add service principal credentials.",
-    "Update application – Certificates and secrets management",
-    "Add application.",
-    "Update service principal.")
-| project Timestamp, AccountUpn, ActionType,
-          IPAddress, TargetResources, AdditionalFields`,
+| where RequestUri has_any (
+    "/addPassword","/addKey","/federatedIdentityCredentials",
+    "/applications","/servicePrincipals")
+  and RequestMethod in ("POST","PATCH")
+| project Timestamp, AccountObjectId, RequestMethod,
+          IPAddress, RequestUri, TargetWorkload, ResponseStatusCode, ApplicationId`,
       },
       {
         table: "AlertInfo",
@@ -395,24 +394,19 @@ CloudAppEvents
     xdrMappings: [
       {
         table: "GraphApiAuditEvents",
-        columns: ["AccountUpn", "ActionType", "IPAddress", "TargetResources", "AdditionalFields"],
+        columns: ["AccountObjectId", "RequestMethod", "IPAddress", "RequestUri", "TargetWorkload", "ResponseStatusCode"],
         kql: `GraphApiAuditEvents
 | where Timestamp > ago(7d)
-| where ActionType in (
-    "Add member to role.",
-    "Add eligible member to role.",
-    "Add scoped member to role.")
-| where AdditionalFields has_any (
-    "Global Administrator","Privileged Role Administrator",
-    "Security Administrator","Exchange Administrator",
-    "SharePoint Administrator","User Administrator",
-    "Application Administrator","Cloud Application Administrator")
-| project Timestamp, AccountUpn, ActionType,
-          IPAddress, TargetResources, AdditionalFields`,
+| where RequestUri has_any (
+    "/roleAssignments","/unifiedRoleAssignments",
+    "/roleEligibilityScheduleRequests","/roleAssignmentScheduleRequests")
+  and RequestMethod in ("POST","PATCH")
+| project Timestamp, AccountObjectId, RequestMethod,
+          IPAddress, RequestUri, TargetWorkload, ResponseStatusCode`,
       },
       {
         table: "IdentityDirectoryEvents",
-        columns: ["AccountUpn", "ActionType", "TargetAccountUpn", "ModifiedProperties"],
+        columns: ["AccountUpn", "ActionType", "TargetAccountUpn", "AdditionalFields"],
         kql: `IdentityDirectoryEvents
 | where Timestamp > ago(7d)
 | where ActionType == "Group Membership changed"
@@ -435,15 +429,13 @@ CloudAppEvents
     xdrMappings: [
       {
         table: "GraphApiAuditEvents",
-        columns: ["AccountUpn", "ActionType", "IPAddress", "TargetResources"],
+        columns: ["AccountObjectId", "RequestMethod", "IPAddress", "RequestUri", "TargetWorkload"],
         kql: `GraphApiAuditEvents
 | where Timestamp > ago(7d)
-| where ActionType in (
-    "Add user.","Invite external user.",
-    "Add application.","Add service principal.",
-    "Create managed identity.")
-| project Timestamp, AccountUpn, ActionType,
-          IPAddress, TargetResources`,
+| where RequestUri has_any ("/users","/invitations","/applications","/servicePrincipals")
+  and RequestMethod == "POST"
+| project Timestamp, AccountObjectId, RequestMethod,
+          IPAddress, RequestUri, TargetWorkload, ResponseStatusCode`,
       },
       {
         table: "IdentityDirectoryEvents",
@@ -469,17 +461,17 @@ CloudAppEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountUpn", "ActionType", "ResourceId", "ResourceType", "IPAddress"],
+        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
-| where ActionType has_any (
+| where OperationName has_any (
     "Microsoft.Compute/images/write",
     "Microsoft.Compute/galleries/images/versions/write",
     "Microsoft.ContainerRegistry/registries/push/write",
     "Microsoft.ContainerRegistry/registries/importImage/action",
     "Microsoft.Compute/disks/write")
-| project Timestamp, AccountUpn, ActionType,
-          ResourceId, ResourceType, IPAddress`,
+| project Timestamp, AccountObjectId, OperationName,
+          ResourceId, ObjectType, IPAddress`,
       },
       {
         table: "AlertInfo",
@@ -504,18 +496,13 @@ CloudAppEvents
     xdrMappings: [
       {
         table: "GraphApiAuditEvents",
-        columns: ["AccountUpn", "ActionType", "IPAddress", "TargetResources", "AdditionalFields"],
+        columns: ["AccountObjectId", "RequestMethod", "IPAddress", "RequestUri", "TargetWorkload", "ResponseStatusCode"],
         kql: `GraphApiAuditEvents
 | where Timestamp > ago(7d)
-| where ActionType in (
-    "Set domain authentication.",
-    "Set federation settings on domain.",
-    "Add unverified domain to company.",
-    "Add verified domain to company.",
-    "Set domain to be authenticated.",
-    "Update domain.")
-| project Timestamp, AccountUpn, ActionType,
-          IPAddress, TargetResources, AdditionalFields`,
+| where RequestUri has "/domains"
+  and RequestMethod in ("POST","PATCH","PUT")
+| project Timestamp, AccountObjectId, RequestMethod,
+          IPAddress, RequestUri, TargetWorkload, ResponseStatusCode`,
       },
       {
         table: "IdentityDirectoryEvents",
@@ -542,17 +529,17 @@ CloudAppEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountUpn", "ActionType", "ResourceId", "ResourceType", "IPAddress"],
+        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
-| where ActionType has_any (
+| where OperationName has_any (
     "microsoft.insights/diagnosticSettings/delete",
     "microsoft.insights/diagnosticSettings/write",
     "Microsoft.Security/policies/write",
     "microsoft.operationalinsights/workspaces/delete",
     "Microsoft.Authorization/policyAssignments/delete")
-| project Timestamp, AccountUpn, ActionType,
-          ResourceId, ResourceType, IPAddress`,
+| project Timestamp, AccountObjectId, OperationName,
+          ResourceId, ObjectType, IPAddress`,
       },
       {
         table: "AlertInfo",
@@ -578,10 +565,10 @@ CloudAppEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountUpn", "ActionType", "ResourceId", "ResourceType", "IPAddress", "AdditionalFields"],
+        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress", "AdditionalFields"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
-| where ActionType has_any (
+| where OperationName has_any (
     "Microsoft.Compute/virtualMachines/write",
     "Microsoft.Storage/storageAccounts/write",
     "Microsoft.Network/virtualNetworks/write",
@@ -593,7 +580,7 @@ CloudAppEvents
     "centralus","northcentralus","southcentralus",
     "westeurope","northeurope","uksouth","ukwest",
     "australiaeast","australiasoutheast")
-| project Timestamp, AccountUpn, ActionType, Region,
+| project Timestamp, AccountObjectId, OperationName, Region,
           ResourceId, IPAddress`,
       },
     ],
@@ -608,17 +595,17 @@ CloudAppEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountUpn", "ActionType", "ResourceId", "ResourceType", "IPAddress", "AdditionalFields"],
+        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress", "AdditionalFields"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
-| where ActionType has_any (
+| where OperationName has_any (
     "Microsoft.Compute/virtualMachines/write",
     "Microsoft.Compute/virtualMachineScaleSets/write",
     "Microsoft.ContainerService/managedClusters/write",
     "Microsoft.ContainerInstance/containerGroups/write")
 | summarize VMsCreated = count(),
             IPs = make_set(IPAddress, 5)
-    by AccountUpn, bin(Timestamp, 1h)
+    by AccountObjectId, bin(Timestamp, 1h)
 | where VMsCreated > 3
 | order by VMsCreated desc`,
       },
@@ -634,16 +621,16 @@ CloudAppEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountUpn", "ActionType", "ResourceId", "ResourceType", "IPAddress"],
+        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
-| where ActionType has_any (
+| where OperationName has_any (
     "Microsoft.Compute/snapshots/write",
     "Microsoft.Compute/disks/beginGetAccess/action",
     "Microsoft.Compute/snapshots/beginGetAccess/action",
     "Microsoft.Compute/disks/download")
-| project Timestamp, AccountUpn, ActionType,
-          ResourceId, ResourceType, IPAddress`,
+| project Timestamp, AccountObjectId, OperationName,
+          ResourceId, ObjectType, IPAddress`,
       },
     ],
   },
@@ -657,17 +644,17 @@ CloudAppEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountUpn", "ActionType", "ResourceId", "ResourceType", "IPAddress"],
+        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
-| where ActionType has_any (
+| where OperationName has_any (
     "Microsoft.Compute/virtualMachines/delete",
     "Microsoft.Compute/virtualMachineScaleSets/delete",
     "Microsoft.ContainerService/managedClusters/delete",
     "Microsoft.ContainerInstance/containerGroups/delete",
     "Microsoft.Compute/disks/delete")
 | summarize Deletions = count(), IPs = make_set(IPAddress, 5)
-    by AccountUpn, ResourceType, bin(Timestamp, 1h)
+    by AccountObjectId, ObjectType, bin(Timestamp, 1h)
 | order by Deletions desc`,
       },
       {
@@ -719,7 +706,7 @@ CloudAppEvents
     xdrMappings: [
       {
         table: "EntraIdSignInEvents",
-        columns: ["AccountUpn", "IPAddress", "Country", "SessionId", "IsManaged", "RiskLevelDuringSignIn"],
+        columns: ["AccountUpn", "IPAddress", "Country", "SessionId", "IsManaged", "RiskLevelAggregated"],
         kql: `// Same session active from two different IPs = likely stolen token replay
 EntraIdSignInEvents
 | where Timestamp > ago(1d)
@@ -792,16 +779,13 @@ EntraIdSignInEvents
     xdrMappings: [
       {
         table: "GraphApiAuditEvents",
-        columns: ["AccountUpn", "ActionType", "IPAddress", "TargetResources", "AdditionalFields"],
+        columns: ["AccountObjectId", "RequestMethod", "IPAddress", "RequestUri", "TargetWorkload", "ResponseStatusCode"],
         kql: `GraphApiAuditEvents
 | where Timestamp > ago(7d)
-| where ActionType in (
-    "Add OAuth2PermissionGrant.",
-    "Consent to application.",
-    "Add application.",
-    "Add service principal.")
-| project Timestamp, AccountUpn, ActionType,
-          IPAddress, TargetResources, AdditionalFields`,
+| where RequestUri has_any ("/oauth2PermissionGrants","/oAuth2PermissionGrants","/delegatedPermissionClassifications")
+  or (RequestUri has_any ("/applications","/servicePrincipals") and RequestMethod == "POST")
+| project Timestamp, AccountObjectId, RequestMethod,
+          IPAddress, RequestUri, TargetWorkload, ResponseStatusCode`,
       },
       {
         table: "EntraIdSignInEvents",
@@ -869,7 +853,7 @@ EntraIdSignInEvents
     xdrMappings: [
       {
         table: "EntraIdSignInEvents",
-        columns: ["AccountUpn", "IPAddress", "ErrorCode", "AuthenticationRequirement", "RiskLevelDuringSignIn"],
+        columns: ["AccountUpn", "IPAddress", "ErrorCode", "AuthenticationRequirement", "RiskLevelAggregated"],
         kql: `// High-volume MFA prompts that fail — target account receiving repeated push requests
 EntraIdSignInEvents
 | where Timestamp > ago(1h)
@@ -903,7 +887,7 @@ EntraIdSignInEvents
     xdrMappings: [
       {
         table: "EntraIdSignInEvents",
-        columns: ["AccountUpn", "IPAddress", "Country", "IsManaged", "AuthenticationRequirement", "RiskLevelDuringSignIn"],
+        columns: ["AccountUpn", "IPAddress", "Country", "IsManaged", "AuthenticationRequirement", "RiskLevelAggregated"],
         kql: `// SAML token abuse: sign-ins with unusual auth method, no device registration
 EntraIdSignInEvents
 | where Timestamp > ago(7d)
@@ -915,7 +899,7 @@ EntraIdSignInEvents
 // Flag accounts that normally require MFA
 | where AccountUpn in ("<high-value-accounts>")
 | project Timestamp, AccountUpn, IPAddress, Country,
-          IsManaged, ConditionalAccessStatus, RiskLevelDuringSignIn`,
+          IsManaged, ConditionalAccessStatus, RiskLevelAggregated`,
       },
       {
         table: "IdentityDirectoryEvents",
@@ -940,7 +924,7 @@ IdentityDirectoryEvents
     xdrMappings: [
       {
         table: "EntraIdSignInEvents",
-        columns: ["AccountUpn", "IPAddress", "Country", "ErrorCode", "AuthenticationRequirement", "RiskLevelDuringSignIn"],
+        columns: ["AccountUpn", "IPAddress", "Country", "ErrorCode", "AuthenticationRequirement", "RiskLevelAggregated"],
         kql: `// Many different accounts failing from same IP in a short window = spray
 EntraIdSignInEvents
 | where Timestamp > ago(1h)
@@ -977,16 +961,16 @@ IdentityLogonEvents
     xdrMappings: [
       {
         table: "EntraIdSignInEvents",
-        columns: ["AccountUpn", "IPAddress", "Country", "IsAnonymousProxy", "RiskLevelDuringSignIn", "ErrorCode"],
+        columns: ["AccountUpn", "IPAddress", "Country", "IsAnonymousProxy", "RiskLevelAggregated", "ErrorCode"],
         kql: `// High-risk successful logins from anonymizers — credential stuffing success
 EntraIdSignInEvents
 | where Timestamp > ago(7d)
 | where ErrorCode == 0
 | where IsAnonymousProxy == true
-    or RiskLevelDuringSignIn in ("high","medium")
+    or RiskLevelAggregated >= 10
 // Also look for logins from known breach/stuffing infrastructure
 | project Timestamp, AccountUpn, IPAddress, Country,
-          IsAnonymousProxy, RiskLevelDuringSignIn`,
+          IsAnonymousProxy, RiskLevelAggregated`,
       },
       {
         table: "AlertInfo",
@@ -1088,10 +1072,10 @@ DataSecurityEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountUpn", "ActionType", "ResourceId", "ResourceType", "IPAddress"],
+        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
-| where ActionType has_any (
+| where OperationName has_any (
     "Microsoft.KeyVault/vaults/secrets/read",
     "Microsoft.KeyVault/vaults/secrets/getSecret/action",
     "Microsoft.KeyVault/vaults/keys/read",
@@ -1099,7 +1083,7 @@ DataSecurityEvents
     "Microsoft.Web/sites/config/list/action",
     "listConnectionStrings")
 | summarize SecretReads = count(), Vaults = dcount(ResourceId)
-    by AccountUpn, IPAddress, bin(Timestamp, 1h)
+    by AccountObjectId, IPAddress, bin(Timestamp, 1h)
 | where SecretReads > 10
 | order by SecretReads desc`,
       },
@@ -1127,10 +1111,10 @@ DataSecurityEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountUpn", "ActionType", "ResourceId", "ResourceType", "IPAddress"],
+        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
-| where ActionType has_any (
+| where OperationName has_any (
     "Microsoft.Compute/virtualMachines/read",
     "Microsoft.Storage/storageAccounts/read",
     "Microsoft.Resources/subscriptions/read",
@@ -1139,8 +1123,8 @@ DataSecurityEvents
     "ListKeys","listKeys",
     "Microsoft.Authorization/roleAssignments/read")
 | summarize OpCount = count(),
-            ResourceTypes = make_set(ResourceType, 20)
-    by AccountUpn, IPAddress, bin(Timestamp, 1h)
+            ObjectTypes = make_set(ObjectType, 20)
+    by AccountObjectId, IPAddress, bin(Timestamp, 1h)
 | where OpCount > 20
 | order by OpCount desc`,
       },
@@ -1171,10 +1155,10 @@ DataSecurityEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountUpn", "ActionType", "ResourceId", "ResourceType", "IPAddress"],
+        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
-| where ActionType has_any (
+| where OperationName has_any (
     "Microsoft.Network/virtualNetworks/read",
     "Microsoft.Network/networkSecurityGroups/read",
     "Microsoft.KeyVault/vaults/read",
@@ -1182,8 +1166,8 @@ DataSecurityEvents
     "Microsoft.Security/securityContacts/read",
     "Microsoft.Compute/disks/read",
     "Microsoft.Sql/servers/read")
-| summarize OpCount = count(), ResourceTypes = make_set(ResourceType, 15)
-    by AccountUpn, IPAddress, bin(Timestamp, 1h)
+| summarize OpCount = count(), ObjectTypes = make_set(ObjectType, 15)
+    by AccountObjectId, IPAddress, bin(Timestamp, 1h)
 | where OpCount > 15
 | order by OpCount desc`,
       },
@@ -1266,17 +1250,14 @@ DataSecurityEvents
     xdrMappings: [
       {
         table: "GraphApiAuditEvents",
-        columns: ["AccountUpn", "ActionType", "IPAddress", "TargetResources"],
+        columns: ["AccountObjectId", "RequestMethod", "IPAddress", "RequestUri", "TargetWorkload"],
         kql: `GraphApiAuditEvents
 | where Timestamp > ago(7d)
-| where ActionType in (
-    "Get member objects","Get user","List users",
-    "List group members","Get service principal",
-    "List service principals","List application",
-    "Get group","List groups")
+| where RequestUri has_any ("/users","/groups","/servicePrincipals","/directoryObjects","/members")
+  and RequestMethod == "GET"
 | summarize Queries = count(),
-            QueryTypes = make_set(ActionType)
-    by AccountUpn, IPAddress, bin(Timestamp, 1h)
+            Endpoints = make_set(RequestUri, 20)
+    by AccountObjectId, IPAddress, bin(Timestamp, 1h)
 | where Queries > 20
 | order by Queries desc`,
       },
@@ -1292,16 +1273,14 @@ DataSecurityEvents
     xdrMappings: [
       {
         table: "GraphApiAuditEvents",
-        columns: ["AccountUpn", "ActionType", "IPAddress", "TargetResources"],
+        columns: ["AccountObjectId", "RequestMethod", "IPAddress", "RequestUri", "TargetWorkload"],
         kql: `GraphApiAuditEvents
 | where Timestamp > ago(7d)
-| where ActionType in (
-    "List groups","Get group","List group members",
-    "List group owners","Get member objects",
-    "List transitive member of","List app role assignments",
-    "List role assignments")
-| summarize Queries = count(), QueryTypes = make_set(ActionType)
-    by AccountUpn, IPAddress, bin(Timestamp, 1h)
+| where RequestUri has_any ("/groups","/members","/owners","/roleAssignments","/appRoleAssignments")
+  and RequestMethod == "GET"
+| summarize Queries = count(),
+            Endpoints = make_set(RequestUri, 20)
+    by AccountObjectId, IPAddress, bin(Timestamp, 1h)
 | where Queries > 15
 | order by Queries desc`,
       },
@@ -1333,33 +1312,33 @@ DataSecurityEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountUpn", "ActionType", "ResourceId", "ResourceType", "IPAddress"],
+        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
-| where ResourceType has_any (
+| where ObjectType has_any (
     "Microsoft.ContainerService",
     "Microsoft.ContainerRegistry",
     "Microsoft.ContainerInstance",
     "Microsoft.App/containerApps",
     "Microsoft.Web/sites")
-| where ActionType has "/read"
-| summarize OpCount = count(), ResourceTypes = make_set(ResourceType, 10)
-    by AccountUpn, IPAddress, bin(Timestamp, 1h)
+| where ActionType == "Read"
+| summarize OpCount = count(), ObjectTypes = make_set(ObjectType, 10)
+    by AccountObjectId, IPAddress, bin(Timestamp, 1h)
 | where OpCount > 10
 | order by OpCount desc`,
       },
       {
         table: "CloudProcessEvents",
-        columns: ["DeviceName", "DeviceId", "FileName", "ProcessCommandLine", "AccountName"],
-        kql: `// kubectl enumeration commands running inside cloud-connected workloads
+        columns: ["KubernetesPodName", "KubernetesNamespace", "ProcessName", "ProcessCommandLine", "AccountName"],
+        kql: `// kubectl enumeration commands running inside AKS/EKS/GKE container workloads
 CloudProcessEvents
 | where Timestamp > ago(7d)
-| where FileName in~ ("kubectl","docker","crictl","ctr","nerdctl")
+| where ProcessName in~ ("kubectl","docker","crictl","ctr","nerdctl")
 | where ProcessCommandLine has_any (
     "get pod","get service","get node","get deploy",
     "get secret","describe","list","exec","auth can-i")
-| project Timestamp, DeviceName, FileName,
-          ProcessCommandLine, AccountName`,
+| project Timestamp, KubernetesPodName, KubernetesNamespace,
+          ProcessName, ProcessCommandLine, AccountName`,
       },
     ],
   },
@@ -1373,10 +1352,10 @@ CloudProcessEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountUpn", "ActionType", "ResourceId", "ResourceType", "IPAddress"],
+        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
-| where ActionType has_any (
+| where OperationName has_any (
     "microsoft.insights/logs/read",
     "microsoft.operationalinsights/workspaces/query/read",
     "microsoft.operationalinsights/workspaces/read",
@@ -1384,7 +1363,7 @@ CloudProcessEvents
     "Microsoft.Security/alerts/read",
     "microsoft.insights/activitylogs/read")
 | summarize LogReads = count()
-    by AccountUpn, IPAddress, bin(Timestamp, 1h)
+    by AccountObjectId, IPAddress, bin(Timestamp, 1h)
 | where LogReads > 10
 | order by LogReads desc`,
       },
@@ -1413,7 +1392,7 @@ CloudProcessEvents
     xdrMappings: [
       {
         table: "EntraIdSignInEvents",
-        columns: ["AccountUpn", "IPAddress", "Country", "Application", "ApplicationId", "RiskLevelDuringSignIn"],
+        columns: ["AccountUpn", "IPAddress", "Country", "Application", "ApplicationId", "RiskLevelAggregated"],
         kql: `// New app or resource accessed by a compromised account after initial sign-in
 EntraIdSignInEvents
 | where Timestamp > ago(1d)
@@ -1607,10 +1586,10 @@ EntraIdSignInEvents
     "wetransfer.com","mega.nz","anonfiles.com",
     "paste.ee","pastebin.com","gofile.io")
 | where RemoteIPType == "Public"
-| summarize TotalSent = sum(SentBytes), Sessions = count()
+| summarize Sessions = count(), FirstSeen = min(Timestamp), LastSeen = max(Timestamp)
     by DeviceName, RemoteUrl, InitiatingProcessFileName
-| where TotalSent > 5000000   // > 5 MB
-| order by TotalSent desc`,
+| where Sessions > 5
+| order by Sessions desc`,
       },
     ],
   },
@@ -1634,10 +1613,9 @@ EntraIdSignInEvents
 | where InitiatingProcessFileName !in~ (
     "OneDrive.exe","MicrosoftEdgeUpdate.exe",
     "WindowsAzureGuestAgent.exe","WaAppAgent.exe")
-| summarize TotalSent = sum(SentBytes), Sessions = count()
+| summarize Sessions = count(), FirstSeen = min(Timestamp), LastSeen = max(Timestamp)
     by DeviceName, RemoteUrl, InitiatingProcessFileName
-| where TotalSent > 10000000   // > 10 MB
-| order by TotalSent desc`,
+| order by Sessions desc`,
       },
       {
         table: "DataSecurityEvents",
@@ -1662,17 +1640,17 @@ EntraIdSignInEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountUpn", "ActionType", "ResourceId", "ResourceType", "IPAddress", "AdditionalFields"],
+        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress", "AdditionalFields"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
-| where ActionType has_any (
+| where OperationName has_any (
     "Microsoft.Compute/virtualMachines/write",
     "Microsoft.Compute/virtualMachineScaleSets/write",
     "Microsoft.ContainerService/managedClusters/write",
     "Microsoft.ContainerInstance/containerGroups/write")
 | summarize VMsCreated = count(),
             IPs = make_set(IPAddress, 5)
-    by AccountUpn, bin(Timestamp, 1h)
+    by AccountObjectId, bin(Timestamp, 1h)
 | where VMsCreated > 3
 | order by VMsCreated desc`,
       },
@@ -1700,18 +1678,15 @@ EntraIdSignInEvents
     xdrMappings: [
       {
         table: "GraphApiAuditEvents",
-        columns: ["AccountUpn", "ActionType", "IPAddress", "TargetResources"],
+        columns: ["AccountObjectId", "RequestMethod", "IPAddress", "RequestUri", "TargetWorkload"],
         kql: `GraphApiAuditEvents
 | where Timestamp > ago(7d)
-| where ActionType in (
-    "Delete user.","Block sign in.",
-    "Remove member from role.",
-    "Delete application.",
-    "Remove service principal credentials.",
-    "Update user.")
+| where (RequestUri has "/users" and RequestMethod in ("DELETE","PATCH"))
+    or (RequestUri has "/roleAssignments" and RequestMethod == "DELETE")
+    or (RequestUri has_any ("/removePassword","/removeKey") and RequestMethod == "POST")
 // Mass account changes = ransomware lockout pattern
-| summarize Changes = count()
-    by AccountUpn, ActionType, bin(Timestamp, 10m)
+| summarize Changes = count(), Endpoints = make_set(RequestUri, 10)
+    by AccountObjectId, IPAddress, bin(Timestamp, 10m)
 | where Changes > 5
 | order by Changes desc`,
       },
@@ -1741,7 +1716,7 @@ EntraIdSignInEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountUpn", "ActionType", "ResourceId", "ResourceType", "IPAddress"],
+        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
 | where ActionType has_any (
@@ -1751,7 +1726,7 @@ EntraIdSignInEvents
     "Microsoft.DocumentDB/databaseAccounts/delete",
     "Microsoft.RecoveryServices/vaults/backupFabrics/delete")
 | summarize Deletions = count(), Resources = make_set(ResourceId, 10)
-    by AccountUpn, ResourceType, bin(Timestamp, 1h)
+    by AccountUpn, ObjectType, bin(Timestamp, 1h)
 | order by Deletions desc`,
       },
       {
@@ -1792,18 +1767,18 @@ EntraIdSignInEvents
       },
       {
         table: "CloudAuditEvents",
-        columns: ["AccountUpn", "ActionType", "ResourceId", "ResourceType", "IPAddress"],
+        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress"],
         kql: `// Ransomware prep: deleting backups before encryption
 CloudAuditEvents
 | where Timestamp > ago(7d)
-| where ActionType has_any (
+| where OperationName has_any (
     "Microsoft.RecoveryServices/vaults/delete",
     "Microsoft.RecoveryServices/vaults/backupFabrics/protectionContainers/protectedItems/delete",
     "Microsoft.RecoveryServices/vaults/backupPolicies/delete",
     "microsoft.backup/backupVaults/delete",
     "Microsoft.Compute/snapshots/delete")
-| project Timestamp, AccountUpn, ActionType,
-          ResourceId, ResourceType, IPAddress`,
+| project Timestamp, AccountObjectId, OperationName,
+          ResourceId, ObjectType, IPAddress`,
       },
     ],
   },
@@ -1817,10 +1792,10 @@ CloudAuditEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountUpn", "ActionType", "ResourceId", "ResourceType", "IPAddress"],
+        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
-| where ActionType has_any (
+| where OperationName has_any (
     "Microsoft.Compute/virtualMachines/deallocate/action",
     "Microsoft.Compute/virtualMachines/powerOff/action",
     "Microsoft.Web/sites/stop/action",
@@ -1828,8 +1803,8 @@ CloudAuditEvents
     "Microsoft.Logic/workflows/disable/action",
     "Microsoft.Automation/automationAccounts/webhooks/action",
     "Microsoft.Security/pricings/write")
-| summarize Stops = count(), Services = make_set(ResourceType, 10)
-    by AccountUpn, IPAddress, bin(Timestamp, 1h)
+| summarize Stops = count(), Services = make_set(ObjectType, 10)
+    by AccountObjectId, IPAddress, bin(Timestamp, 1h)
 | where Stops > 3
 | order by Stops desc`,
       },
@@ -1856,17 +1831,17 @@ CloudAuditEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountUpn", "ActionType", "ResourceId", "ResourceType", "IPAddress"],
+        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
-| where ActionType has_any (
+| where OperationName has_any (
     "Microsoft.Web/sites/write",
     "Microsoft.Storage/storageAccounts/blobServices/containers/write",
     "Microsoft.Cdn/profiles/endpoints/write",
     "Microsoft.Network/frontDoors/write")
 // Unexpected changes to web/CDN resources
-| project Timestamp, AccountUpn, ActionType,
-          ResourceId, ResourceType, IPAddress`,
+| project Timestamp, AccountObjectId, OperationName,
+          ResourceId, ObjectType, IPAddress`,
       },
       {
         table: "AlertInfo",

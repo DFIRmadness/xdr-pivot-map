@@ -28,7 +28,7 @@ export const TABLES = [
   { id: "EmailUrlInfo",                           domain: "email",     desc: "URLs extracted from email bodies" },
   { id: "EmailPostDeliveryEvents",                domain: "email",     desc: "Post-delivery security events on emails" },
   { id: "UrlClickEvents",                         domain: "email",     desc: "Safe Links clicks from email, Teams, O365" },
-  { id: "CampaignInfo",                           domain: "email",     desc: "Email campaigns identified by MDO" },
+  { id: "CampaignInfo",                           domain: "email",     desc: "Email campaigns identified by MDO", preview: true },
 
   // ── Teams (MDO) ───────────────────────────────────────────────────────────────
   { id: "MessageEvents",                          domain: "teams",     desc: "Teams messages at time of delivery — Teams equivalent of EmailEvents" },
@@ -37,9 +37,9 @@ export const TABLES = [
 
   // ── Cloud (MDCA / Defender for Cloud) ─────────────────────────────────────────
   { id: "CloudAppEvents",                         domain: "cloud",     desc: "Activity in O365 and other cloud apps" },
-  { id: "CloudAuditEvents",                       domain: "cloud",     desc: "Cloud platform audit events (Defender for Cloud)" },
-  { id: "CloudProcessEvents",                     domain: "cloud",     desc: "Process events in cloud container workloads" },
-  { id: "CloudDnsEvents",                         domain: "cloud",     desc: "DNS activity in cloud infrastructure (Preview)" },
+  { id: "CloudAuditEvents",                       domain: "cloud",     desc: "Cloud platform audit events (Defender for Cloud)", preview: true },
+  { id: "CloudProcessEvents",                     domain: "cloud",     desc: "Process events in cloud container workloads (AKS/EKS/GKE)", preview: true },
+  { id: "CloudDnsEvents",                         domain: "cloud",     desc: "DNS activity in cloud infrastructure", preview: true },
 
   // ── Alerts ────────────────────────────────────────────────────────────────────
   { id: "AlertInfo",                              domain: "alerts",    desc: "Alerts from MDE, MDO, MDCA, MDI with severity" },
@@ -50,17 +50,21 @@ export const TABLES = [
   { id: "DeviceTvmSoftwareVulnerabilities",       domain: "tvm",       desc: "CVEs found on devices" },
   { id: "DeviceTvmSecureConfigurationAssessment", domain: "tvm",       desc: "Security config status on devices" },
   { id: "DeviceTvmHardwareFirmware",              domain: "tvm",       desc: "Hardware and firmware inventory for supply chain risk" },
-  { id: "DeviceTvmBrowserExtensions",             domain: "tvm",       desc: "Browser extension inventory — malicious extension persistence (Preview)" },
-  { id: "DeviceTvmCertificateInfo",               domain: "tvm",       desc: "Certificate inventory from TVM (Preview)" },
+  { id: "DeviceTvmBrowserExtensions",             domain: "tvm",       desc: "Browser extension inventory — malicious extension persistence", preview: true },
+  { id: "DeviceTvmCertificateInfo",               domain: "tvm",       desc: "Certificate inventory from TVM", preview: true },
 
   // ── Purview (IRM / DLP) ───────────────────────────────────────────────────────
-  { id: "DataSecurityEvents",                     domain: "purview",   desc: "User activities violating Purview DLP / IRM policies" },
+  { id: "DataSecurityEvents",                     domain: "purview",   desc: "User activities violating Purview DLP / IRM policies", preview: true },
 
   // ── Behaviors / UEBA ─────────────────────────────────────────────────────────
-  { id: "BehaviorInfo",                           domain: "behaviors", desc: "UEBA anomaly behaviors — correlated across multiple signals (Preview)" },
-  { id: "BehaviorEntities",                       domain: "behaviors", desc: "Entities (devices, users, files) linked to UEBA behaviors (Preview)" },
+  { id: "BehaviorInfo",                           domain: "behaviors", desc: "UEBA anomaly behaviors — correlated across multiple signals", preview: true },
+  { id: "BehaviorEntities",                       domain: "behaviors", desc: "Entities (devices, users, files) linked to UEBA behaviors", preview: true },
 
   // ── Security Exposure Management ──────────────────────────────────────────────
   { id: "ExposureGraphNodes",                     domain: "exposure",  desc: "Attack surface entity nodes — devices, identities, cloud assets" },
   { id: "ExposureGraphEdges",                     domain: "exposure",  desc: "Attack path relationships between exposure graph entities" },
+
+  // ── Azure Sentinel / Log Analytics ────────────────────────────────────────
+  { id: "SigninLogs",                             domain: "azure",     azure: true, desc: "Entra ID sign-ins via Azure Monitor. AuthenticationProtocol == 'deviceCode' is the primary filter for device code phishing hunts." },
+  { id: "OfficeActivity",                         domain: "azure",     azure: true, desc: "Exchange, SharePoint, OneDrive, and Teams audit logs from Azure Monitor. Pre-migration equivalent of CloudAppEvents for Sentinel-based environments." },
 ];

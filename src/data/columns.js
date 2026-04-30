@@ -12,7 +12,7 @@ export const COLUMN_INFO = {
   "AccountUpn": {
     docs: "User Principal Name (UPN) of the account in user@domain.com format, as recorded by the data source. May reflect the on-premises UPN or the cloud UPN depending on the table.",
     plain: "The user's login name in email format. The most consistent cross-table user identifier — works across device, identity, email, and cloud app tables.",
-    dfir: "Your primary identity pivot. An attacker who compromises a single account will leave UPN breadcrumbs across EmailEvents, IdentityLogonEvents, DeviceLogonEvents, EntraIdSignInEvents, CloudAppEvents, CloudAuditEvents, GraphApiAuditEvents, and BehaviorInfo. Correlating all of them paints the full picture of what they did after initial access.",
+    dfir: "Your primary identity pivot. An attacker who compromises a single account will leave UPN breadcrumbs across EmailEvents, IdentityLogonEvents, DeviceLogonEvents, EntraIdSignInEvents, CloudAppEvents, and BehaviorInfo. Note: CloudAuditEvents and GraphApiAuditEvents do not have an AccountUpn column — use RawEventData['caller'] for CloudAuditEvents and AccountObjectId for GraphApiAuditEvents.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-identitylogonevents-table",
     crossTables: [
       { table: "DeviceProcessEvents" },
@@ -28,8 +28,6 @@ export const COLUMN_INFO = {
       { table: "EntraIdSignInEvents" },
       { table: "AADSignInEventsBeta" },
       { table: "CloudAppEvents" },
-      { table: "CloudAuditEvents" },
-      { table: "GraphApiAuditEvents" },
       { table: "UrlClickEvents" },
       { table: "AlertEvidence" },
       { table: "BehaviorInfo" },
@@ -51,7 +49,6 @@ export const COLUMN_INFO = {
       { table: "EntraIdSignInEvents" },
       { table: "AADSignInEventsBeta" },
       { table: "CloudAppEvents" },
-      { table: "CloudAuditEvents" },
       { table: "GraphApiAuditEvents" },
       { table: "EmailEvents", as: "SenderObjectId" },
       { table: "EmailAttachmentInfo", as: "SenderObjectId" },
@@ -64,12 +61,10 @@ export const COLUMN_INFO = {
   "AccountId": {
     docs: "Identifier for the account as recorded in CloudAppEvents. May be an AAD ObjectId, SID, or email address depending on the application and event type.",
     plain: "The account identifier as the cloud app sees it — usually the same as AccountObjectId for Microsoft 365 apps.",
-    dfir: "Use this to join CloudAppEvents to GraphApiAuditEvents and CloudAuditEvents to trace what a compromised account actually did in the cloud after sign-in.",
+    dfir: "Use this to join CloudAppEvents activities to the user identity. Note: this column exists in CloudAppEvents but NOT in GraphApiAuditEvents (which uses AccountObjectId) or CloudAuditEvents (which embeds caller info in RawEventData).",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-cloudappevents-table",
     crossTables: [
       { table: "CloudAppEvents" },
-      { table: "GraphApiAuditEvents" },
-      { table: "CloudAuditEvents" },
     ],
   },
 
@@ -112,7 +107,6 @@ export const COLUMN_INFO = {
       { table: "AADSignInEventsBeta" },
       { table: "CloudAppEvents" },
       { table: "IdentityDirectoryEvents" },
-      { table: "GraphApiAuditEvents" },
     ],
   },
 
@@ -196,7 +190,7 @@ export const COLUMN_INFO = {
   "IsAnonymousProxy": {
     docs: "Boolean indicating whether the sign-in IP address was identified as an anonymous proxy, VPN, or TOR exit node by Microsoft's threat intelligence.",
     plain: "True if the login came from a known anonymiser — VPN, TOR, or proxy service.",
-    dfir: "Attackers use anonymisers to obscure their origin. A legitimate employee signing in through TOR is almost never valid. Combine with RiskLevelDuringSignIn for high-confidence account compromise alerts.",
+    dfir: "Attackers use anonymisers to obscure their origin. A legitimate employee signing in through TOR is almost never valid. Combine with RiskLevelAggregated for high-confidence account compromise alerts.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-aadsignineventsbeta-table",
     crossTables: [
       { table: "EntraIdSignInEvents" },
@@ -204,13 +198,13 @@ export const COLUMN_INFO = {
     ],
   },
 
-  "RiskLevelDuringSignIn": {
-    docs: "Entra ID Protection risk level assessed at sign-in time. Values: none, low, medium, high. Factors include leaked credentials, impossible travel, anonymous IP, and unusual sign-in properties. In EntraIdSignInEvents this is named RiskLevelAggregated.",
+  "RiskLevelAggregated": {
+    docs: "Entra ID Protection risk level assessed at sign-in time. Integer values: 0=none, 1=low, 10=medium, 100=high. Factors include leaked credentials, impossible travel, anonymous IP, and unusual sign-in properties. Present in both AADSignInEventsBeta and EntraIdSignInEvents under this same column name.",
     plain: "Microsoft's real-time risk score for the sign-in — high means Entra thinks something is suspicious.",
     dfir: "A pre-computed threat signal you should always include in sign-in investigations. High risk + successful sign-in + no MFA challenge = Conditional Access gap. Cross-reference with IsAnonymousProxy and Country to understand what drove the risk score.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-aadsignineventsbeta-table",
     crossTables: [
-      { table: "EntraIdSignInEvents", as: "RiskLevelAggregated" },
+      { table: "EntraIdSignInEvents" },
       { table: "AADSignInEventsBeta" },
     ],
   },
@@ -304,7 +298,6 @@ export const COLUMN_INFO = {
       { table: "DeviceRegistryEvents" },
       { table: "DeviceLogonEvents" },
       { table: "DeviceEvents" },
-      { table: "CloudProcessEvents" },
       { table: "IdentityLogonEvents" },
       { table: "IdentityQueryEvents" },
       { table: "AlertEvidence" },
@@ -338,7 +331,6 @@ export const COLUMN_INFO = {
       { table: "DeviceRegistryEvents" },
       { table: "DeviceEvents" },
       { table: "DeviceImageLoadEvents" },
-      { table: "CloudProcessEvents" },
     ],
   },
 
@@ -370,7 +362,6 @@ export const COLUMN_INFO = {
       { table: "DeviceRegistryEvents" },
       { table: "DeviceEvents" },
       { table: "DeviceImageLoadEvents" },
-      { table: "CloudProcessEvents" },
     ],
   },
 
@@ -443,7 +434,6 @@ export const COLUMN_INFO = {
       { table: "CloudAppEvents" },
       { table: "CloudAuditEvents" },
       { table: "CloudProcessEvents" },
-      { table: "GraphApiAuditEvents" },
       { table: "BehaviorInfo" },
       { table: "BehaviorEntities" },
       { table: "DataSecurityEvents" },
@@ -560,13 +550,11 @@ export const COLUMN_INFO = {
   },
 
   "BytesSent": {
-    docs: "Number of bytes sent by the local device to the remote endpoint during the connection. Also appears as SentBytes in some table versions.",
-    plain: "How much data this device sent to the remote endpoint.",
-    dfir: "Primary exfiltration detection signal. Large BytesSent values to external IPs from non-browser processes — especially outside business hours — are high-priority alerts. Also useful for DNS tunneling: DNS queries that send unusually large payloads indicate data being encoded in query names.",
+    docs: "Number of bytes sent by the local device to the remote endpoint. Note: DeviceNetworkEvents does NOT include SentBytes or ReceivedBytes columns — byte counts are not available in that table.",
+    plain: "How much data this device sent to the remote endpoint. Not available in DeviceNetworkEvents — use connection count and timing patterns to infer exfiltration instead.",
+    dfir: "DeviceNetworkEvents does not expose byte counts. To detect exfiltration via network telemetry, use connection frequency (Connections = count()), beaconing interval patterns, and remote IP/domain reputation instead. For actual data volume, check CloudAppEvents (file download/upload events) or DataSecurityEvents (Purview DLP triggers).",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-devicenetworkevents-table",
-    crossTables: [
-      { table: "DeviceNetworkEvents", as: "SentBytes" },
-    ],
+    crossTables: [],
   },
 
   // ── Registry ──────────────────────────────────────────────────────────────
@@ -994,12 +982,12 @@ export const COLUMN_INFO = {
   },
 
   "ModifiedProperties": {
-    docs: "A JSON array describing what properties were changed on an Active Directory object, including the old and new values of each modified attribute, as recorded in IdentityDirectoryEvents.",
-    plain: "The before-and-after values of whatever was changed — for example, a group membership change shows the old member list and the new one, or a password change logs which account attribute was touched.",
-    dfir: "The most detail-rich field in IdentityDirectoryEvents. Parse the JSON to extract old and new values. For group changes, look for additions to 'Domain Admins', 'Enterprise Admins', or 'Protected Users'. For account changes, flag modifications to adminCount, userAccountControl, or servicePrincipalName.",
+    docs: "NOT a top-level column in IdentityDirectoryEvents. Attribute change details (old and new values) are stored inside the AdditionalFields JSON column, not as a standalone ModifiedProperties field. Access via: parse_json(AdditionalFields)[\"ModifiedProperties\"].",
+    plain: "AD attribute change details live inside AdditionalFields (JSON), not as their own column. Use parse_json(AdditionalFields) to extract the modified properties.",
+    dfir: "To get before/after values in IdentityDirectoryEvents, extend with parse_json(AdditionalFields). For group membership changes look for additions to 'Domain Admins', 'Enterprise Admins', or 'Protected Users'. For account changes, flag modifications to adminCount, userAccountControl, or servicePrincipalName. Example: | extend ChangedProps = parse_json(AdditionalFields) | where tostring(ChangedProps) has 'Domain Admins'",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-identitydirectoryevents-table",
     crossTables: [
-      { table: "IdentityDirectoryEvents" },
+      { table: "IdentityDirectoryEvents", as: "AdditionalFields (JSON)" },
     ],
   },
 
@@ -1054,13 +1042,14 @@ export const COLUMN_INFO = {
 
   "SessionId": {
     docs: "Unique identifier for the authenticated session created by the sign-in event.",
-    plain: "A unique ID that ties this sign-in event to all activity performed during that browser or app session. One sign-in = one SessionId for everything that happens until the session expires or is revoked.",
-    dfir: "Links a specific sign-in event to subsequent cloud and API activity from the same session token. In token theft scenarios, activity using the stolen token may share the original SessionId — revealing that actions taken from a different IP belong to the same stolen session.",
+    plain: "SessionId in EntraIdSignInEvents is the canonical session token. In CloudAppEvents and OfficeActivity the same value surfaces as AADSessionId — extracted from the AppAccessContext JSON column: parse_json(AppAccessContext).AADSessionId. One sign-in = one token = one SessionId/AADSessionId across every table that logs activity under it.",
+    dfir: "The primary attacker-tracking pivot for SaaS activity in AiTM token theft. The Login:Reprocess event in EntraIdSignInEvents (EndPointCall == 'Login:Reprocess') is where the stolen session token is issued — the SessionId on that event is what the attacker holds. After token issuance, SaaS activity tables (CloudAppEvents, OfficeActivity) will show Microsoft datacenter IPs for the attacker's actions — not the attacker's real proxy IP — because stolen sessions route through Microsoft infrastructure. The attacker proxy IP is still a first-class IOC: block it in Conditional Access, hunt it in DeviceNetworkEvents, and search threat intel for campaign infrastructure. SessionId is the reliable thread for SaaS tables: match it to AADSessionId in CloudAppEvents and OfficeActivity. The two most reliable attacker trackers in AiTM: (1) known attacker proxy IP — valid for blocking, network tables, threat intel; (2) stolen SessionId — reliable for all SaaS activity tables where Microsoft infra IPs appear.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-aadsignineventsbeta-table",
     crossTables: [
       { table: "EntraIdSignInEvents" },
       { table: "AADSignInEventsBeta" },
       { table: "CloudAppEvents" },
+      { table: "OfficeActivity" },
     ],
   },
 

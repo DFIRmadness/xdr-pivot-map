@@ -45,7 +45,7 @@ export const PIVOT_EDGES = [
 
   // ─── CLOUD APP / AUDIT / PROCESS ──────────────────────────────────────────
 
-  { source: "CloudAppEvents",   target: "EntraIdSignInEvents",    cols: ["AccountUpn", "AccountObjectId"],              tier: "high" },
+  { source: "CloudAppEvents",   target: "EntraIdSignInEvents",    cols: ["AccountUpn", "AccountObjectId", "SessionId → AADSessionId"],  tier: "high" },
   { source: "CloudAppEvents",   target: "GraphApiAuditEvents",    cols: ["AccountUpn", "AccountObjectId"],              tier: "high" },
   { source: "CloudAuditEvents", target: "CloudProcessEvents",     cols: ["ResourceId", "DeviceId"],                     tier: "high" },
   { source: "CloudAppEvents",   target: "CloudAuditEvents",       cols: ["AccountUpn", "AccountObjectId"],              tier: "mid"  },
@@ -182,7 +182,7 @@ export const PIVOT_EDGES = [
   { source: "IdentityDirectoryEvents", target: "GraphApiAuditEvents", cols: ["AccountUpn"],                              tier: "high" },
   { source: "IdentityAccountInfo",  target: "IdentityLogonEvents",    cols: ["AccountObjectId", "AccountUpn"],           tier: "mid"  },
   { source: "IdentityAccountInfo",  target: "EntraIdSignInEvents",    cols: ["AccountObjectId"],                         tier: "mid"  },
-  { source: "AADSignInEventsBeta",  target: "EntraIdSignInEvents",    cols: ["AccountUpn", "AccountObjectId"],           tier: "low"  },
+  { source: "AADSignInEventsBeta",  target: "EntraIdSignInEvents",    cols: ["AccountUpn", "AccountObjectId", "SessionId → AADSessionId"], tier: "low"  },
 
   // ─── PURVIEW / DATA ────────────────────────────────────────────────────────
 
@@ -194,5 +194,19 @@ export const PIVOT_EDGES = [
   { source: "ExposureGraphNodes",   target: "ExposureGraphEdges",     cols: ["NodeId"],                                  tier: "high" },
   { source: "ExposureGraphNodes",   target: "DeviceInfo",             cols: ["DeviceId"],                                tier: "mid"  },
   { source: "ExposureGraphNodes",   target: "IdentityInfo",           cols: ["AccountObjectId"],                         tier: "mid"  },
+
+  // ─── AZURE SENTINEL TABLES ─────────────────────────────────────────────────
+  // SigninLogs and OfficeActivity live in Log Analytics / Sentinel.
+  // Join keys map: UserPrincipalName → AccountUpn; UserId → AccountUpn.
+
+  { source: "SigninLogs",     target: "EntraIdSignInEvents",    cols: ["UserPrincipalName", "IPAddress"],                tier: "high" },
+  { source: "SigninLogs",     target: "IdentityInfo",           cols: ["UserPrincipalName"],                             tier: "high" },
+  { source: "SigninLogs",     target: "CloudAppEvents",         cols: ["UserPrincipalName", "IPAddress"],                tier: "high" },
+  { source: "SigninLogs",     target: "IdentityLogonEvents",    cols: ["UserPrincipalName", "IPAddress"],                tier: "mid"  },
+  { source: "SigninLogs",     target: "GraphApiAuditEvents",    cols: ["UserPrincipalName"],                             tier: "mid"  },
+  { source: "OfficeActivity", target: "CloudAppEvents",         cols: ["UserId", "ClientIP", "SessionId → AADSessionId"],              tier: "high" },
+  { source: "OfficeActivity", target: "SigninLogs",             cols: ["UserId", "UserPrincipalName"],                  tier: "mid"  },
+  { source: "OfficeActivity", target: "EntraIdSignInEvents",    cols: ["UserId", "SessionId → AADSessionId"],                          tier: "mid"  },
+  { source: "OfficeActivity", target: "IdentityInfo",           cols: ["UserId"],                                       tier: "mid"  },
 
 ];

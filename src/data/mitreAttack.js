@@ -145,12 +145,12 @@ export const TECHNIQUES = [
     xdrMappings: [
       {
         table: "EntraIdSignInEvents",
-        columns: ["AccountUpn", "IPAddress", "Country", "IsAnonymousProxy", "RiskLevelDuringSignIn", "ErrorCode"],
+        columns: ["AccountUpn", "IPAddress", "Country", "IsAnonymousProxy", "RiskLevelAggregated", "ErrorCode"],
         kql: `EntraIdSignInEvents
 | where Timestamp > ago(7d)
-| where RiskLevelDuringSignIn in ("high", "medium")
+| where RiskLevelAggregated >= 10
 | where ErrorCode == 0
-| project Timestamp, AccountUpn, IPAddress, Country, IsAnonymousProxy, RiskLevelDuringSignIn`,
+| project Timestamp, AccountUpn, IPAddress, Country, IsAnonymousProxy, RiskLevelAggregated`,
       },
       {
         table: "CloudAppEvents",
@@ -183,12 +183,12 @@ export const TECHNIQUES = [
       },
       {
         table: "EmailAttachmentInfo",
-        columns: ["NetworkMessageId", "FileName", "FileType", "SHA256", "MalwareDetectionMethod"],
+        columns: ["NetworkMessageId", "FileName", "FileType", "SHA256", "ThreatTypes", "DetectionMethods"],
         kql: `EmailAttachmentInfo
 | where Timestamp > ago(7d)
-| where isnotempty(MalwareDetectionMethod) or FileType in ("exe","dll","docm","xlsm","js","vbs","hta","ps1","lnk")
+| where isnotempty(ThreatTypes) or FileType in ("exe","dll","docm","xlsm","js","vbs","hta","ps1","lnk")
 | join kind=inner EmailEvents on NetworkMessageId
-| project Timestamp, SenderFromAddress, RecipientEmailAddress, FileName, FileType, SHA256, MalwareDetectionMethod`,
+| project Timestamp, SenderFromAddress, RecipientEmailAddress, FileName, FileType, SHA256, ThreatTypes`,
       },
       {
         table: "UrlClickEvents",
@@ -209,13 +209,13 @@ export const TECHNIQUES = [
     xdrMappings: [
       {
         table: "EntraIdSignInEvents",
-        columns: ["AccountUpn", "IPAddress", "Country", "IsAnonymousProxy", "RiskLevelDuringSignIn", "ConditionalAccessStatus"],
+        columns: ["AccountUpn", "IPAddress", "Country", "IsAnonymousProxy", "RiskLevelAggregated", "ConditionalAccessStatus"],
         kql: `EntraIdSignInEvents
 | where Timestamp > ago(1d)
 | where ErrorCode == 0
 | where Country != "<expected_country>"
-| where IsAnonymousProxy == true or RiskLevelDuringSignIn == "high"
-| project Timestamp, AccountUpn, IPAddress, Country, RiskLevelDuringSignIn`,
+| where IsAnonymousProxy == true or RiskLevelAggregated >= 10
+| project Timestamp, AccountUpn, IPAddress, Country, RiskLevelAggregated`,
       },
       {
         table: "IdentityLogonEvents",
@@ -330,14 +330,14 @@ export const TECHNIQUES = [
       },
       {
         table: "EntraIdSignInEvents",
-        columns: ["AccountUpn", "IPAddress", "Country", "Application", "ConditionalAccessStatus", "RiskLevelDuringSignIn"],
+        columns: ["AccountUpn", "IPAddress", "Country", "Application", "ConditionalAccessStatus", "RiskLevelAggregated"],
         kql: `EntraIdSignInEvents
 | where Timestamp > ago(1d)
 | where Application in ("Azure VPN", "GlobalProtect", "Cisco AnyConnect", "F5 BIG-IP", "Citrix Gateway")
     or Application has_any ("VPN", "Remote Access", "Gateway")
 | where ErrorCode == 0
-| where RiskLevelDuringSignIn in ("medium", "high") or IsAnonymousProxy == true
-| project Timestamp, AccountUpn, IPAddress, Country, Application, RiskLevelDuringSignIn`,
+| where RiskLevelAggregated >= 10 or IsAnonymousProxy == true
+| project Timestamp, AccountUpn, IPAddress, Country, Application, RiskLevelAggregated`,
       },
       {
         table: "AlertInfo",
@@ -532,14 +532,15 @@ export const TECHNIQUES = [
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["ActionType", "AccountDisplayName", "ResourceId", "AdditionalFields"],
+        columns: ["ActionType", "OperationName", "ResourceId", "IPAddress", "AdditionalFields"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(1d)
-| where ActionType in (
+| where OperationName has_any (
     "Microsoft.Compute/virtualMachines/runCommand/action",
     "Microsoft.Compute/virtualMachines/extensions/write",
     "RunShellScript", "RunPowerShellScript")
-| project Timestamp, AccountDisplayName, ActionType, ResourceId, AdditionalFields`,
+| extend Caller = tostring(RawEventData["caller"])
+| project Timestamp, Caller, OperationName, ResourceId, IPAddress, AdditionalFields`,
       },
       {
         table: "CloudAppEvents",
@@ -551,11 +552,11 @@ export const TECHNIQUES = [
       },
       {
         table: "CloudProcessEvents",
-        columns: ["DeviceName", "FileName", "ProcessCommandLine", "AccountName", "InitiatingProcessFileName"],
+        columns: ["KubernetesPodName", "KubernetesNamespace", "ProcessName", "ParentProcessName", "ProcessCommandLine"],
         kql: `CloudProcessEvents
 | where Timestamp > ago(1d)
-| where InitiatingProcessFileName in~ ("waagent", "azure-vm-agent", "omiserver", "omsagent")
-| project Timestamp, DeviceName, AccountName, FileName, ProcessCommandLine, InitiatingProcessFileName`,
+| where ParentProcessName in~ ("waagent", "azure-vm-agent", "omiserver", "omsagent")
+| project Timestamp, KubernetesNamespace, KubernetesPodName, ProcessName, ProcessCommandLine, ParentProcessName`,
       },
     ],
   },
@@ -578,12 +579,12 @@ export const TECHNIQUES = [
       },
       {
         table: "CloudProcessEvents",
-        columns: ["DeviceName", "FileName", "ProcessCommandLine", "AccountName"],
+        columns: ["KubernetesPodName", "KubernetesNamespace", "ProcessName", "ProcessCommandLine", "ParentProcessName"],
         kql: `CloudProcessEvents
 | where Timestamp > ago(1d)
-| where FileName in~ ("python", "python3", "python2")
+| where ProcessName in~ ("python", "python3", "python2")
 | where ProcessCommandLine has_any ("-c ", "import socket", "reverse_shell", "subprocess", "os.system")
-| project Timestamp, DeviceName, AccountName, ProcessCommandLine`,
+| project Timestamp, KubernetesNamespace, KubernetesPodName, ProcessName, ProcessCommandLine`,
       },
     ],
   },
@@ -622,19 +623,20 @@ export const TECHNIQUES = [
     xdrMappings: [
       {
         table: "GraphApiAuditEvents",
-        columns: ["ActionType", "ActorObjectId", "ActorIPAddress", "TargetObjectId", "AdditionalDetails"],
+        columns: ["AccountObjectId", "IPAddress", "RequestUri", "RequestMethod", "TargetWorkload", "ResponseStatusCode"],
         kql: `GraphApiAuditEvents
 | where Timestamp > ago(1d)
-| summarize Actions = count(), Targets = dcount(TargetObjectId) by ActorObjectId, ActorIPAddress, bin(Timestamp, 1h)
+| summarize Actions = count(), Endpoints = dcount(RequestUri) by AccountObjectId, IPAddress, bin(Timestamp, 1h)
 | where Actions > 50
 | order by Actions desc`,
       },
       {
         table: "CloudAuditEvents",
-        columns: ["ActionType", "AccountDisplayName", "ResourceId", "AdditionalFields"],
+        columns: ["ActionType", "OperationName", "ResourceId", "IPAddress", "AdditionalFields"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(1d)
-| summarize Actions = count(), UniqueResources = dcount(ResourceId) by AccountDisplayName, bin(Timestamp, 1h)
+| extend Caller = tostring(RawEventData["caller"])
+| summarize Actions = count(), UniqueResources = dcount(ResourceId) by Caller, IPAddress, bin(Timestamp, 1h)
 | where Actions > 100
 | order by Actions desc`,
       },
@@ -818,14 +820,14 @@ export const TECHNIQUES = [
       },
       {
         table: "GraphApiAuditEvents",
-        columns: ["ActionType", "ActorObjectId", "TargetObjectId", "ActorIPAddress", "AdditionalDetails"],
+        columns: ["AccountObjectId", "IPAddress", "RequestUri", "RequestMethod", "TargetWorkload", "ResponseStatusCode"],
         kql: `GraphApiAuditEvents
 | where Timestamp > ago(1d)
-| where ActionType in (
-    "Add member to role",
-    "Add owner to service principal",
-    "Add credentials to service principal")
-| project Timestamp, ActionType, ActorObjectId, TargetObjectId, ActorIPAddress, AdditionalDetails`,
+| where RequestUri has_any (
+    "/members", "/owners", "/credentials",
+    "/appRoleAssignments", "/servicePrincipals")
+| where RequestMethod in ("POST", "PATCH")
+| project Timestamp, AccountObjectId, IPAddress, RequestUri, RequestMethod, ResponseStatusCode`,
       },
     ],
   },
@@ -846,7 +848,7 @@ export const TECHNIQUES = [
       },
       {
         table: "DeviceNetworkEvents",
-        columns: ["DeviceName", "RemoteUrl", "RemoteIP", "InitiatingProcessFileName", "BytesSent"],
+        columns: ["DeviceName", "RemoteUrl", "RemoteIP", "InitiatingProcessFileName", "ActionType"],
         kql: `DeviceNetworkEvents
 | where Timestamp > ago(1d)
 | where InitiatingProcessFileName =~ "svchost.exe"
@@ -914,11 +916,12 @@ export const TECHNIQUES = [
       },
       {
         table: "GraphApiAuditEvents",
-        columns: ["ActionType", "ActorObjectId", "TargetObjectId", "ActorIPAddress", "AdditionalDetails"],
+        columns: ["AccountObjectId", "IPAddress", "RequestUri", "RequestMethod", "TargetWorkload", "ResponseStatusCode"],
         kql: `GraphApiAuditEvents
 | where Timestamp > ago(1d)
-| where ActionType in ("Add credentials to service principal", "Update application")
-| project Timestamp, ActionType, ActorObjectId, TargetObjectId, ActorIPAddress, AdditionalDetails`,
+| where RequestUri has_any ("/credentials", "/servicePrincipals", "/applications")
+| where RequestMethod in ("POST", "PATCH")
+| project Timestamp, AccountObjectId, IPAddress, RequestUri, RequestMethod, ResponseStatusCode`,
       },
     ],
   },
@@ -963,11 +966,12 @@ export const TECHNIQUES = [
       },
       {
         table: "GraphApiAuditEvents",
-        columns: ["ActionType", "ActorObjectId", "TargetObjectId", "ActorIPAddress", "AdditionalDetails"],
+        columns: ["AccountObjectId", "IPAddress", "RequestUri", "RequestMethod", "TargetWorkload", "ResponseStatusCode"],
         kql: `GraphApiAuditEvents
 | where Timestamp > ago(1d)
-| where ActionType in ("Add member to role", "Add eligible member to role")
-| project Timestamp, ActionType, ActorObjectId, TargetObjectId, ActorIPAddress, AdditionalDetails`,
+| where RequestUri has "/roleAssignments"
+| where RequestMethod == "POST"
+| project Timestamp, AccountObjectId, IPAddress, RequestUri, RequestMethod, ResponseStatusCode`,
       },
     ],
   },
@@ -987,11 +991,12 @@ export const TECHNIQUES = [
       },
       {
         table: "GraphApiAuditEvents",
-        columns: ["ActionType", "ActorObjectId", "TargetObjectId", "ActorIPAddress", "AdditionalDetails"],
+        columns: ["AccountObjectId", "IPAddress", "RequestUri", "RequestMethod", "TargetWorkload", "ResponseStatusCode"],
         kql: `GraphApiAuditEvents
 | where Timestamp > ago(1d)
-| where ActionType in ("Add user", "Add service principal", "Add application")
-| project Timestamp, ActionType, ActorObjectId, TargetObjectId, ActorIPAddress, AdditionalDetails`,
+| where RequestUri has_any ("/users", "/servicePrincipals", "/applications")
+| where RequestMethod == "POST"
+| project Timestamp, AccountObjectId, IPAddress, RequestUri, RequestMethod, ResponseStatusCode`,
       },
     ],
   },
@@ -1141,10 +1146,9 @@ export const TECHNIQUES = [
       },
       {
         table: "DeviceTvmSoftwareVulnerabilities",
-        columns: ["DeviceName", "CveId", "CvssScore", "SoftwareName", "SoftwareVersion", "VulnerabilitySeverityLevel"],
+        columns: ["DeviceName", "CveId", "SoftwareName", "SoftwareVersion", "VulnerabilitySeverityLevel"],
         kql: `DeviceTvmSoftwareVulnerabilities
 | where VulnerabilitySeverityLevel in ("Critical", "High")
-| where CvssScore >= 7.0
 | summarize CVEs = make_set(CveId), Count = count() by DeviceName, SoftwareName
 | order by Count desc`,
       },
@@ -1202,14 +1206,15 @@ export const TECHNIQUES = [
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["ActionType", "AccountDisplayName", "ResourceId", "AdditionalFields"],
+        columns: ["ActionType", "OperationName", "ResourceId", "IPAddress", "AdditionalFields"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(1d)
-| where ActionType has_any (
+| where OperationName has_any (
     "Elevate access to manage all Azure subscriptions",
     "activateRole", "ActivatePIMRole",
     "Microsoft.Authorization/elevateAccess/action")
-| project Timestamp, AccountDisplayName, ActionType, ResourceId, AdditionalFields`,
+| extend Caller = tostring(RawEventData["caller"])
+| project Timestamp, Caller, OperationName, ResourceId, IPAddress, AdditionalFields`,
       },
       {
         table: "CloudAppEvents",
@@ -1523,14 +1528,15 @@ export const TECHNIQUES = [
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["ActionType", "AccountDisplayName", "ResourceId", "AdditionalFields"],
+        columns: ["ActionType", "OperationName", "ResourceId", "IPAddress", "AdditionalFields"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(1d)
-| where ActionType has_any (
+| where OperationName has_any (
     "Microsoft.Compute/virtualMachines/write",
     "CreateInstance", "RunInstances",
     "create virtual machine")
-| project Timestamp, AccountDisplayName, ActionType, ResourceId, AdditionalFields`,
+| extend Caller = tostring(RawEventData["caller"])
+| project Timestamp, Caller, OperationName, ResourceId, IPAddress, AdditionalFields`,
       },
       {
         table: "CloudAppEvents",
@@ -1552,14 +1558,15 @@ export const TECHNIQUES = [
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["ActionType", "AccountDisplayName", "ResourceId", "AdditionalFields"],
+        columns: ["ActionType", "OperationName", "ResourceId", "IPAddress", "AdditionalFields"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(1d)
-| where ActionType has_any (
+| where OperationName has_any (
     "Microsoft.Compute/virtualMachines/delete",
     "TerminateInstances", "DeleteInstance",
     "delete virtual machine")
-| project Timestamp, AccountDisplayName, ActionType, ResourceId, AdditionalFields`,
+| extend Caller = tostring(RawEventData["caller"])
+| project Timestamp, Caller, OperationName, ResourceId, IPAddress, AdditionalFields`,
       },
     ],
   },
@@ -1597,7 +1604,7 @@ export const TECHNIQUES = [
     xdrMappings: [
       {
         table: "DeviceFileCertificateInfo",
-        columns: ["DeviceName", "SHA256", "Signer", "Issuer", "IsTrusted", "IsRootSignerMicrosoft", "CertificateSerialNumber"],
+        columns: ["DeviceName", "SHA1", "Signer", "Issuer", "IsTrusted", "IsRootSignerMicrosoft", "CertificateSerialNumber"],
         kql: `DeviceFileCertificateInfo
 | where Timestamp > ago(1d)
 | where IsTrusted == true and IsRootSignerMicrosoft == false
@@ -1605,18 +1612,17 @@ export const TECHNIQUES = [
     DeviceFileEvents
     | where ActionType == "FileCreated"
     | where FolderPath has_any ("\\Temp\\", "\\AppData\\", "\\Downloads\\")
-) on SHA256
-| project Timestamp, DeviceName, SHA256, Signer, Issuer, FolderPath`,
+) on SHA1
+| project Timestamp, DeviceName, SHA1, Signer, Issuer, FolderPath`,
       },
       {
         table: "DeviceImageLoadEvents",
-        columns: ["DeviceName", "FileName", "FolderPath", "SHA256", "IsSigned", "Signer"],
+        columns: ["DeviceName", "FileName", "FolderPath", "SHA256", "InitiatingProcessFileName"],
         kql: `DeviceImageLoadEvents
 | where Timestamp > ago(1d)
-| where IsSigned == true
 | where FolderPath has_any ("\\Temp\\", "\\AppData\\", "\\ProgramData\\", "\\Users\\Public\\")
-| where Signer !has "Microsoft"
-| project Timestamp, DeviceName, FileName, FolderPath, SHA256, Signer`,
+| where InitiatingProcessFileName !in~ ("MsMpEng.exe", "svchost.exe")
+| project Timestamp, DeviceName, FileName, FolderPath, SHA256, InitiatingProcessFileName`,
       },
     ],
   },
@@ -1675,13 +1681,13 @@ export const TECHNIQUES = [
       },
       {
         table: "EntraIdSignInEvents",
-        columns: ["AccountUpn", "IPAddress", "ClientAppUsed", "AppDisplayName", "IsDeviceCompliant"],
+        columns: ["AccountUpn", "IPAddress", "ClientAppUsed", "ResourceDisplayName", "IsCompliant"],
         kql: `EntraIdSignInEvents
 | where Timestamp > ago(1d)
 | where ClientAppUsed in~ ("Browser", "Other clients", "Mobile Apps and Desktop clients")
-| where IsDeviceCompliant != true
+| where IsCompliant != 1
 | where ErrorCode == 0
-| summarize Locations = dcount(IPAddress) by AccountUpn, AppDisplayName, ClientAppUsed
+| summarize Locations = dcount(IPAddress) by AccountUpn, ResourceDisplayName, ClientAppUsed
 | where Locations > 3
 | order by Locations desc`,
       },
@@ -1734,7 +1740,7 @@ export const TECHNIQUES = [
       },
       {
         table: "EntraIdSignInEvents",
-        columns: ["AccountUpn", "IPAddress", "ErrorCode", "Country", "RiskLevelDuringSignIn"],
+        columns: ["AccountUpn", "IPAddress", "ErrorCode", "Country", "RiskLevelAggregated"],
         kql: `EntraIdSignInEvents
 | where Timestamp > ago(1h)
 | where ErrorCode in (50126, 50053, 50055, 50056)
@@ -1780,7 +1786,7 @@ export const TECHNIQUES = [
     xdrMappings: [
       {
         table: "EntraIdSignInEvents",
-        columns: ["AccountUpn", "IPAddress", "Country", "IsManaged", "SessionId", "UserAgent", "RiskLevelDuringSignIn"],
+        columns: ["AccountUpn", "IPAddress", "Country", "IsManaged", "SessionId", "UserAgent", "RiskLevelAggregated"],
         kql: `EntraIdSignInEvents
 | where Timestamp > ago(1d)
 | where ErrorCode == 0
@@ -1820,15 +1826,15 @@ export const TECHNIQUES = [
     xdrMappings: [
       {
         table: "EntraIdSignInEvents",
-        columns: ["AccountUpn", "IPAddress", "ClientAppUsed", "AppDisplayName", "ErrorCode", "IsDeviceCompliant"],
+        columns: ["AccountUpn", "IPAddress", "ClientAppUsed", "ResourceDisplayName", "ErrorCode", "IsCompliant"],
         kql: `EntraIdSignInEvents
 | where Timestamp > ago(1d)
 | where ClientAppUsed =~ "Azure Active Directory PowerShell"
     or ClientAppUsed has "device code"
-    or AppDisplayName has_any ("Graph Explorer", "Azure PowerShell")
+    or ResourceDisplayName has_any ("Graph Explorer", "Azure PowerShell")
 | where ErrorCode == 0
-| where IsDeviceCompliant != true
-| project Timestamp, AccountUpn, IPAddress, ClientAppUsed, AppDisplayName, IsDeviceCompliant`,
+| where IsCompliant != 1
+| project Timestamp, AccountUpn, IPAddress, ClientAppUsed, ResourceDisplayName, IsCompliant`,
       },
       {
         table: "CloudAppEvents",
@@ -1843,11 +1849,12 @@ export const TECHNIQUES = [
       },
       {
         table: "GraphApiAuditEvents",
-        columns: ["ActionType", "ActorObjectId", "TargetObjectId", "ActorIPAddress", "AdditionalDetails"],
+        columns: ["AccountObjectId", "IPAddress", "RequestUri", "RequestMethod", "TargetWorkload", "ResponseStatusCode"],
         kql: `GraphApiAuditEvents
 | where Timestamp > ago(1d)
-| where ActionType in ("Add delegated permission grant", "Update application")
-| project Timestamp, ActionType, ActorObjectId, TargetObjectId, ActorIPAddress, AdditionalDetails`,
+| where RequestUri has_any ("/oauth2PermissionGrants", "/applications", "/servicePrincipals")
+| where RequestMethod in ("POST", "PATCH")
+| project Timestamp, AccountObjectId, IPAddress, RequestUri, RequestMethod, ResponseStatusCode`,
       },
     ],
   },
@@ -1859,18 +1866,18 @@ export const TECHNIQUES = [
     xdrMappings: [
       {
         table: "EntraIdSignInEvents",
-        columns: ["AccountUpn", "IPAddress", "Country", "UserAgent", "RiskLevelDuringSignIn", "IsAnonymousProxy"],
+        columns: ["AccountUpn", "IPAddress", "Country", "UserAgent", "RiskLevelAggregated", "IsAnonymousProxy"],
         kql: `EntraIdSignInEvents
 | where Timestamp > ago(1d)
 | where ErrorCode == 0
-| where RiskLevelDuringSignIn == "high" or IsAnonymousProxy == true
+| where RiskLevelAggregated >= 10 or IsAnonymousProxy == true
 | join kind=inner (
     EntraIdSignInEvents
     | where Timestamp > ago(1d) and ErrorCode == 0
     | summarize SignInIPs = make_set(IPAddress) by AccountUpn
 ) on AccountUpn
 | where array_length(SignInIPs) > 2
-| project Timestamp, AccountUpn, IPAddress, Country, RiskLevelDuringSignIn, UserAgent`,
+| project Timestamp, AccountUpn, IPAddress, Country, RiskLevelAggregated, UserAgent`,
       },
       {
         table: "EmailEvents",
@@ -1992,7 +1999,7 @@ export const TECHNIQUES = [
     xdrMappings: [
       {
         table: "EntraIdSignInEvents",
-        columns: ["AccountUpn", "IPAddress", "ErrorCode", "RiskLevelDuringSignIn", "Country"],
+        columns: ["AccountUpn", "IPAddress", "ErrorCode", "RiskLevelAggregated", "Country"],
         kql: `EntraIdSignInEvents
 | where Timestamp > ago(1h)
 // ErrorCode 500121 = MFA required, user hasn't completed; repeated = MFA fatigue
@@ -2024,14 +2031,12 @@ export const TECHNIQUES = [
       },
       {
         table: "GraphApiAuditEvents",
-        columns: ["ActionType", "ActorObjectId", "TargetObjectId", "ActorIPAddress", "AdditionalDetails"],
+        columns: ["AccountObjectId", "IPAddress", "RequestUri", "RequestMethod", "TargetWorkload", "ResponseStatusCode"],
         kql: `GraphApiAuditEvents
 | where Timestamp > ago(1d)
-| where ActionType in (
-    "Update authentication methods",
-    "Delete authentication method",
-    "Register authentication method")
-| project Timestamp, ActionType, ActorObjectId, TargetObjectId, ActorIPAddress, AdditionalDetails`,
+| where RequestUri has "/authentication"
+| where RequestMethod in ("POST", "DELETE", "PATCH")
+| project Timestamp, AccountObjectId, IPAddress, RequestUri, RequestMethod, ResponseStatusCode`,
       },
     ],
   },
@@ -2048,8 +2053,8 @@ export const TECHNIQUES = [
 | where Timestamp > ago(1d)
 | where ErrorCode == 0
 | where AuthenticationRequirement == "singleFactorAuthentication"
-// SAML assertions bypass MFA — look for federated logins without MFA
-| where ConditionalAccessStatus == "notApplied"
+// SAML assertions bypass MFA — look for federated logins without MFA; ConditionalAccessStatus 2 = not applied
+| where ConditionalAccessStatus == 2
 | project Timestamp, AccountUpn, IPAddress, Country, AuthenticationRequirement, ConditionalAccessStatus`,
       },
       {
@@ -2362,11 +2367,12 @@ export const TECHNIQUES = [
       },
       {
         table: "GraphApiAuditEvents",
-        columns: ["ActionType", "ActorObjectId", "TargetObjectId", "ActorIPAddress", "AdditionalDetails"],
+        columns: ["AccountObjectId", "IPAddress", "RequestUri", "RequestMethod", "TargetWorkload", "ResponseStatusCode"],
         kql: `GraphApiAuditEvents
 | where Timestamp > ago(1d)
-| where ActionType in ("Get application", "List service principals", "List directory roles", "List users")
-| summarize Count = count() by ActorObjectId, ActorIPAddress, ActionType, bin(Timestamp, 1h)
+| where RequestUri has_any ("/applications", "/servicePrincipals", "/directoryRoles", "/users")
+| where RequestMethod == "GET"
+| summarize Count = count() by AccountObjectId, IPAddress, TargetWorkload, bin(Timestamp, 1h)
 | where Count > 30
 | order by Count desc`,
       },
@@ -2536,13 +2542,14 @@ export const TECHNIQUES = [
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["ActionType", "AccountDisplayName", "ResourceId", "AdditionalFields"],
+        columns: ["ActionType", "OperationName", "ResourceId", "IPAddress", "AdditionalFields"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(1d)
-| where ActionType has_any (
+| where OperationName has_any (
     "list", "List", "Get-Az", "describe-instances",
     "DescribeInstances", "Microsoft.Resources/subscriptions/resourceGroups/read")
-| summarize Actions = count(), Resources = dcount(ResourceId) by AccountDisplayName, bin(Timestamp, 1h)
+| extend Caller = tostring(RawEventData["caller"])
+| summarize Actions = count(), Resources = dcount(ResourceId) by Caller, IPAddress, bin(Timestamp, 1h)
 | where Actions > 50
 | order by Actions desc`,
       },
@@ -2566,13 +2573,13 @@ export const TECHNIQUES = [
     xdrMappings: [
       {
         table: "EntraIdSignInEvents",
-        columns: ["AccountUpn", "IPAddress", "Country", "AppDisplayName", "IsDeviceCompliant", "RiskLevelDuringSignIn"],
+        columns: ["AccountUpn", "IPAddress", "Country", "ResourceDisplayName", "IsCompliant", "RiskLevelAggregated"],
         kql: `EntraIdSignInEvents
 | where Timestamp > ago(1d)
-| where AppDisplayName in ("Azure Portal", "Microsoft Azure", "Azure Active Directory")
+| where ResourceDisplayName in ("Azure Portal", "Microsoft Azure", "Azure Active Directory")
 | where ErrorCode == 0
-| where IsDeviceCompliant != true or RiskLevelDuringSignIn in ("medium", "high")
-| project Timestamp, AccountUpn, IPAddress, Country, AppDisplayName, RiskLevelDuringSignIn`,
+| where IsCompliant != 1 or RiskLevelAggregated >= 10
+| project Timestamp, AccountUpn, IPAddress, Country, ResourceDisplayName, RiskLevelAggregated`,
       },
     ],
   },
@@ -2596,11 +2603,12 @@ export const TECHNIQUES = [
       },
       {
         table: "CloudAuditEvents",
-        columns: ["ActionType", "AccountDisplayName", "ResourceId", "AdditionalFields"],
+        columns: ["ActionType", "OperationName", "ResourceId", "IPAddress", "AdditionalFields"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(1d)
-| where ActionType has_any ("ListContainers", "ListBuckets", "Get-AzStorageContainer", "List Blobs")
-| project Timestamp, AccountDisplayName, ActionType, ResourceId`,
+| where OperationName has_any ("ListContainers", "ListBuckets", "Get-AzStorageContainer", "List Blobs")
+| extend Caller = tostring(RawEventData["caller"])
+| project Timestamp, Caller, OperationName, ResourceId, IPAddress`,
       },
     ],
   },
@@ -2848,11 +2856,11 @@ export const TECHNIQUES = [
     xdrMappings: [
       {
         table: "EntraIdSignInEvents",
-        columns: ["AccountUpn", "IPAddress", "AppDisplayName", "Country", "IsAnonymousProxy", "RiskLevelDuringSignIn"],
+        columns: ["AccountUpn", "IPAddress", "ResourceDisplayName", "Country", "RiskLevelAggregated"],
         kql: `EntraIdSignInEvents
 | where Timestamp > ago(1d)
 | where ErrorCode == 0
-| summarize Apps = dcount(AppDisplayName), IPs = make_set(IPAddress) by AccountUpn, bin(Timestamp, 1h)
+| summarize Apps = dcount(ResourceDisplayName), IPs = make_set(IPAddress) by AccountUpn, bin(Timestamp, 1h)
 | where Apps > 5 or array_length(IPs) > 3
 | order by Apps desc`,
       },
@@ -3168,13 +3176,13 @@ export const TECHNIQUES = [
     xdrMappings: [
       {
         table: "DeviceNetworkEvents",
-        columns: ["DeviceName", "RemoteIP", "RemoteUrl", "RemotePort", "InitiatingProcessFileName", "BytesSent"],
+        columns: ["DeviceName", "RemoteIP", "RemoteUrl", "RemotePort", "InitiatingProcessFileName"],
         kql: `DeviceNetworkEvents
 | where Timestamp > ago(1d)
 | where RemotePort in (80, 443, 8080, 8443)
 | where ActionType == "ConnectionSuccess"
 | where InitiatingProcessFileName !in~ ("chrome.exe","msedge.exe","firefox.exe","svchost.exe","MsMpEng.exe","OneDrive.exe")
-| summarize Connections = count(), BytesSent = sum(SentBytes) by DeviceName, RemoteIP, InitiatingProcessFileName, bin(Timestamp, 1h)
+| summarize Connections = count(), FirstSeen = min(Timestamp), LastSeen = max(Timestamp) by DeviceName, RemoteIP, InitiatingProcessFileName, bin(Timestamp, 1h)
 | where Connections > 20
 | order by Connections desc`,
       },
@@ -3260,7 +3268,7 @@ export const TECHNIQUES = [
     xdrMappings: [
       {
         table: "DeviceNetworkEvents",
-        columns: ["DeviceName", "RemoteIP", "RemotePort", "RemoteUrl", "InitiatingProcessFileName", "BytesSent"],
+        columns: ["DeviceName", "RemoteIP", "RemotePort", "RemoteUrl", "InitiatingProcessFileName", "ActionType"],
         kql: `DeviceNetworkEvents
 | where Timestamp > ago(1d)
 | where InitiatingProcessFileName in~ ("ssh.exe", "plink.exe", "chisel.exe", "iodine.exe", "dnscat2.exe", "ngrok.exe")
@@ -3286,7 +3294,7 @@ export const TECHNIQUES = [
     xdrMappings: [
       {
         table: "DeviceNetworkEvents",
-        columns: ["DeviceName", "RemoteIP", "RemotePort", "InitiatingProcessFileName", "BytesSent"],
+        columns: ["DeviceName", "RemoteIP", "RemotePort", "InitiatingProcessFileName", "ActionType"],
         kql: `DeviceNetworkEvents
 | where Timestamp > ago(1d)
 | where RemotePort in (21, 22, 69, 990, 989)
@@ -3323,7 +3331,7 @@ export const TECHNIQUES = [
     xdrMappings: [
       {
         table: "DeviceNetworkEvents",
-        columns: ["DeviceName", "RemoteIP", "RemotePort", "InitiatingProcessFileName", "BytesSent"],
+        columns: ["DeviceName", "RemoteIP", "RemotePort", "InitiatingProcessFileName", "ActionType"],
         kql: `DeviceNetworkEvents
 | where Timestamp > ago(1d)
 | where RemotePort !in (80, 443, 53, 8080, 8443, 22, 25, 587, 465, 3389, 135, 445, 139, 636, 389)
@@ -3388,7 +3396,7 @@ export const TECHNIQUES = [
     xdrMappings: [
       {
         table: "DeviceNetworkEvents",
-        columns: ["DeviceName", "RemoteUrl", "RemoteIP", "InitiatingProcessFileName", "BytesSent"],
+        columns: ["DeviceName", "RemoteUrl", "RemoteIP", "InitiatingProcessFileName", "ActionType"],
         kql: `DeviceNetworkEvents
 | where Timestamp > ago(1d)
 | where RemoteUrl has_any (
@@ -3410,15 +3418,15 @@ export const TECHNIQUES = [
     xdrMappings: [
       {
         table: "DeviceNetworkEvents",
-        columns: ["DeviceName", "RemoteIP", "RemotePort", "RemoteUrl", "BytesSent", "InitiatingProcessFileName"],
+        columns: ["DeviceName", "RemoteIP", "RemotePort", "RemoteUrl", "InitiatingProcessFileName"],
         kql: `DeviceNetworkEvents
 | where Timestamp > ago(1d)
 | where RemotePort in (21, 22, 25, 53, 69, 143, 993)
 | where ActionType == "ConnectionSuccess"
 | where InitiatingProcessFileName !in~ ("svchost.exe", "System")
-| summarize TotalBytesSent = sum(SentBytes) by DeviceName, RemoteIP, RemotePort, InitiatingProcessFileName
-| where TotalBytesSent > 50000000
-| order by TotalBytesSent desc`,
+| summarize Connections = count(), FirstSeen = min(Timestamp), LastSeen = max(Timestamp) by DeviceName, RemoteIP, RemotePort, InitiatingProcessFileName
+| where Connections > 10
+| order by Connections desc`,
       },
     ],
   },
@@ -3430,14 +3438,14 @@ export const TECHNIQUES = [
     xdrMappings: [
       {
         table: "DeviceNetworkEvents",
-        columns: ["DeviceName", "RemoteUrl", "RemoteIP", "BytesSent", "InitiatingProcessFileName"],
+        columns: ["DeviceName", "RemoteUrl", "RemoteIP", "InitiatingProcessFileName"],
         kql: `DeviceNetworkEvents
 | where Timestamp > ago(1d)
 | where RemoteUrl has_any ("dropbox.com", "mega.nz", "drive.google.com", "wetransfer.com", "anonfiles.com", "gofile.io")
 | where ActionType == "ConnectionSuccess"
-| summarize TotalSent = sum(SentBytes) by DeviceName, RemoteUrl, InitiatingProcessFileName
-| where TotalSent > 5000000
-| order by TotalSent desc`,
+| where InitiatingProcessFileName !in~ ("chrome.exe","msedge.exe","firefox.exe","OneDrive.exe")
+| summarize Connections = count(), FirstSeen = min(Timestamp), LastSeen = max(Timestamp) by DeviceName, RemoteUrl, InitiatingProcessFileName
+| order by Connections desc`,
       },
       {
         table: "CloudAppEvents",
@@ -3470,12 +3478,12 @@ export const TECHNIQUES = [
       },
       {
         table: "DataSecurityEvents",
-        columns: ["AccountUpn", "ActionType", "FileName", "Sensitivity", "PolicyName", "Application"],
+        columns: ["AccountUpn", "ActionType", "ObjectName", "SensitivityLabelId", "DlpPolicyMatchInfo", "Workload"],
         kql: `DataSecurityEvents
 | where Timestamp > ago(1d)
 | where ActionType in ("FileUploadedToCloud", "FileCopiedToRemovableMedia", "FileSharedExternally")
-| where isnotempty(Sensitivity)
-| project Timestamp, AccountUpn, ActionType, FileName, Sensitivity, PolicyName, Application`,
+| where isnotempty(SensitivityLabelId)
+| project Timestamp, AccountUpn, ActionType, ObjectName, SensitivityLabelId, DlpPolicyMatchInfo, Workload`,
       },
     ],
   },
@@ -3488,15 +3496,15 @@ export const TECHNIQUES = [
     xdrMappings: [
       {
         table: "DeviceNetworkEvents",
-        columns: ["DeviceName", "RemoteIP", "RemoteUrl", "RemotePort", "BytesSent", "InitiatingProcessFileName"],
+        columns: ["DeviceName", "RemoteIP", "RemoteUrl", "RemotePort", "InitiatingProcessFileName"],
         kql: `DeviceNetworkEvents
 | where Timestamp > ago(1d)
 | where ActionType == "ConnectionSuccess"
-// High BytesSent to same external IP from non-browser process = C2 exfil
-| summarize TotalSent = sum(SentBytes), Connections = count() by DeviceName, RemoteIP, InitiatingProcessFileName
-| where TotalSent > 10000000   // > 10MB
 | where InitiatingProcessFileName !in~ ("chrome.exe", "msedge.exe", "firefox.exe", "OneDrive.exe")
-| order by TotalSent desc`,
+| summarize Connections = count(), FirstSeen = min(Timestamp), LastSeen = max(Timestamp) by DeviceName, RemoteIP, InitiatingProcessFileName
+| where Connections > 30
+| extend BeaconingInterval = datetime_diff("second", LastSeen, FirstSeen) / Connections
+| order by Connections desc`,
       },
     ],
   },
@@ -3518,12 +3526,12 @@ export const TECHNIQUES = [
       },
       {
         table: "DeviceNetworkEvents",
-        columns: ["DeviceName", "RemoteIP", "RemoteUrl", "BytesSent", "InitiatingProcessFileName"],
+        columns: ["DeviceName", "RemoteIP", "RemoteUrl", "InitiatingProcessFileName"],
         kql: `DeviceNetworkEvents
 | where Timestamp > ago(1d)
-| summarize TotalSent = sum(SentBytes), Sessions = count() by DeviceName, RemoteIP, InitiatingProcessFileName, bin(Timestamp, 1h)
-| where TotalSent > 100000000  // > 100MB per hour
-| order by TotalSent desc`,
+| summarize Sessions = count(), FirstSeen = min(Timestamp), LastSeen = max(Timestamp) by DeviceName, RemoteIP, InitiatingProcessFileName, bin(Timestamp, 1h)
+| where Sessions > 100         // High connection volume per hour = automated exfil
+| order by Sessions desc`,
       },
     ],
   },
@@ -3535,15 +3543,14 @@ export const TECHNIQUES = [
     xdrMappings: [
       {
         table: "DeviceNetworkEvents",
-        columns: ["DeviceName", "RemoteUrl", "RemoteIP", "BytesSent", "InitiatingProcessFileName"],
+        columns: ["DeviceName", "RemoteUrl", "RemoteIP", "InitiatingProcessFileName"],
         kql: `DeviceNetworkEvents
 | where Timestamp > ago(1d)
 | where RemoteUrl has_any ("github.com", "gitlab.com", "dev.azure.com", "bitbucket.org")
 | where ActionType == "ConnectionSuccess"
-| summarize TotalSent = sum(SentBytes), Connections = count() by DeviceName, RemoteUrl, InitiatingProcessFileName
-| where TotalSent > 5000000   // > 5MB to code repo from non-IDE
 | where InitiatingProcessFileName !in~ ("git.exe", "devenv.exe", "code.exe", "pycharm64.exe")
-| order by TotalSent desc`,
+| summarize Connections = count(), FirstSeen = min(Timestamp) by DeviceName, RemoteUrl, InitiatingProcessFileName
+| order by Connections desc`,
       },
     ],
   },

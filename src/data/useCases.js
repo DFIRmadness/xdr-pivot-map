@@ -2,6 +2,168 @@ import { PIVOT_EDGES } from "./pivots.js";
 
 export const USE_CASES = [
   {
+    id: "becFraud",
+    name: "AiTM → BEC Fraud",
+    icon: "💸",
+    tactic: "Initial Access > Impact",
+    color: "#f97316",
+    desc: "AiTM proxy steals the session cookie, attacker creates inbox rules, reads pending invoices, then impersonates the vendor to redirect a wire transfer.",
+    steps: [
+      {
+        table: "EmailEvents",
+        action: "Find the AiTM phishing lure — finance-themed subjects or Microsoft auth prompts from non-Microsoft domains",
+        kql: `EmailEvents
+| where Timestamp > ago(14d)
+| where DeliveryAction in ("Delivered","DeliveredAsSpam")
+| where Subject has_any (
+    "sign-in","verify","MFA","invoice","payment",
+    "authentication","action required","review document")
+  and SenderFromDomain !endswith "microsoft.com"
+| project Timestamp, SenderFromAddress, SenderFromDomain,
+          RecipientEmailAddress, Subject,
+          DeliveryAction, ThreatTypes, NetworkMessageId`,
+      },
+      {
+        table: "UrlClickEvents",
+        action: "Confirm click through the AiTM proxy — UrlChain shows the relay redirect before the real Microsoft login",
+        kql: `UrlClickEvents
+| where Timestamp > ago(14d)
+| where NetworkMessageId == "<NetworkMessageId from EmailEvents>"
+    or Url has "<proxy_domain from EmailUrlInfo>"
+| project Timestamp, AccountUpn, Url, UrlChain,
+          ActionType, IsClickedThrough, IPAddress`,
+      },
+      {
+        table: "EntraIdSignInEvents",
+        action: "Find Login:Reprocess event — this is where the attacker receives the stolen session token. Capture SessionId as the primary pivot for all downstream steps",
+        kql: `// Login:Reprocess = attacker's proxy receives the session token from Entra
+EntraIdSignInEvents
+| where Timestamp > ago(14d)
+| where AccountUpn =~ "<AccountUpn from UrlClickEvents>"
+| where ErrorCode == 0
+| where EndPointCall == "Login:Reprocess"
+| project
+    TokenIssuedAt   = Timestamp,
+    AccountUpn, AccountObjectId,
+    SessionId,                      // The stolen token — use as AADSessionId downstream
+    AttackerProxyIP = IPAddress,
+    Country, Application
+---
+// Full sign-in history — spot victim IP vs attacker proxy IP
+EntraIdSignInEvents
+| where Timestamp > ago(14d)
+| where AccountUpn =~ "<AccountUpn>"
+| where ErrorCode == 0
+| project Timestamp, AccountUpn, SessionId, IPAddress,
+          Country, EndPointCall, IsManaged,
+          RiskLevelAggregated, AccountObjectId
+| sort by Timestamp asc`,
+      },
+      {
+        table: "CloudAppEvents",
+        action: "Attacker creates inbox rules to forward all mail — filter by stolen SessionId (AADSessionId in AppAccessContext), not IP address",
+        kql: `// AADSessionId in AppAccessContext matches SessionId from Login:Reprocess event
+CloudAppEvents
+| where Timestamp > ago(14d)
+| extend AADSessionId = tostring(parse_json(AppAccessContext).AADSessionId)
+| where AADSessionId == "<SessionId from EntraIdSignInEvents>"
+| where ActionType in (
+    "New-InboxRule","Set-InboxRule",
+    "Set-Mailbox","Add-MailboxPermission",
+    "New-TransportRule")
+| extend RuleDetails = parse_json(RawEventData)
+| project Timestamp, AccountUpn, ActionType,
+          IPAddress, AADSessionId, RuleDetails, RawEventData`,
+      },
+      {
+        table: "CloudAppEvents",
+        action: "Attacker reads the mailbox — MailItemsAccessed under the stolen session. Double mv-expand gives one row per email with FolderPath, InternetMessageId, and Subject (via EmailEvents join) as separate columns",
+        kql: `// MailItemsAccessed: double mv-expand → one row per accessed email
+CloudAppEvents
+| where Timestamp > ago(14d)
+| where ActionType == "MailItemsAccessed"
+// SaaS sessions route through Microsoft infra — filter by AADSessionId, not IP
+| extend AADSessionId = tostring(parse_json(AppAccessContext).AADSessionId)
+| where AADSessionId == "<SessionId from EntraIdSignInEvents>"
+| extend raw = parse_json(RawEventData)
+| mv-expand Folder = raw.Folders
+| extend FolderPath = tostring(Folder.Path)
+| mv-expand Item = Folder.FolderItems
+| extend InternetMessageId = tostring(Item.InternetMessageId)
+| extend SizeInBytes       = toint(Item.SizeInBytes)
+// Subject not logged in MailItemsAccessed — recover it from EmailEvents
+| join kind=leftouter (
+    EmailEvents
+    | where Timestamp > ago(14d)
+    | project InternetMessageId, Subject, SenderFromAddress, RecipientEmailAddress
+) on InternetMessageId
+| project Timestamp, AccountUpn, AADSessionId, IPAddress,
+          FolderPath, InternetMessageId,
+          Subject, SenderFromAddress, SizeInBytes
+| sort by Timestamp asc
+---
+// What search terms did the attacker run?
+CloudAppEvents
+| where Timestamp > ago(14d)
+| where ActionType == "SearchQueryInitiatedExchange"
+| extend AADSessionId = tostring(parse_json(AppAccessContext).AADSessionId)
+| where AADSessionId == "<SessionId from EntraIdSignInEvents>"
+| extend raw = parse_json(RawEventData)
+| extend SearchQuery = tostring(raw.SearchQuery)
+| extend ResultCount = toint(raw.ItemCount)
+| project Timestamp, AccountUpn, AADSessionId, IPAddress,
+          SearchQuery, ResultCount
+| sort by Timestamp asc`,
+      },
+      {
+        table: "EmailEvents",
+        action: "Find the BEC fraud email sent from the compromised mailbox or lookalike domain requesting fraudulent wire transfer or payment redirect",
+        kql: `EmailEvents
+| where Timestamp > ago(14d)
+| where SenderFromAddress =~ "<compromised_account>"
+    and EmailDirection == "Outbound"
+| where Subject has_any (
+    "invoice","payment","wire","bank account",
+    "transfer","urgent","updated banking","remittance")
+| project Timestamp, SenderFromAddress, RecipientEmailAddress,
+          Subject, DeliveryAction, NetworkMessageId
+| sort by Timestamp desc`,
+      },
+      {
+        table: "AlertInfo",
+        action: "Correlate MDO/MDCA/MDI alerts — impossible travel, inbox rule creation, anomalous send volume, and BEC-pattern detections",
+        kql: `AlertInfo
+| where Timestamp > ago(14d)
+| where Title has_any (
+    "AiTM","impossible travel","token theft",
+    "inbox rule","mail forwarding","BEC",
+    "suspicious sign-in","anomalous")
+    or Category in ("InitialAccess","Persistence","Collection","Exfiltration")
+| project Timestamp, AlertId, Title, Severity,
+          Category, AttackTechniques, ServiceSource`,
+      },
+      {
+        table: "AlertEvidence",
+        action: "Extract confirmed IOCs — attacker IP, compromised UPN, inbox rule name — to scope blast radius and support account recovery",
+        kql: `AlertEvidence
+| where Timestamp > ago(14d)
+| where AlertId == "<AlertId from AlertInfo>"
+| where EntityType in ("User","Ip","Mailbox","CloudApplication")
+| project Timestamp, AlertId, EntityType, EvidenceRole,
+          AccountUpn, AccountObjectId, RemoteIP, AdditionalFields`,
+      },
+    ],
+    links: [
+      { from: "EmailEvents",         to: "UrlClickEvents",       col: "NetworkMessageId" },
+      { from: "UrlClickEvents",      to: "EntraIdSignInEvents",  col: "AccountUpn" },
+      { from: "EntraIdSignInEvents", to: "CloudAppEvents",       col: "SessionId → AADSessionId" },
+      { from: "CloudAppEvents",      to: "GraphApiAuditEvents",  col: "AccountId" },
+      { from: "CloudAppEvents",      to: "EmailEvents",          col: "AccountUpn → SenderFromAddress" },
+      { from: "AlertInfo",           to: "AlertEvidence",        col: "AlertId" },
+      { from: "AlertEvidence",       to: "EntraIdSignInEvents",  col: "AccountUpn" },
+    ],
+  },
+  {
     id: "phishing",
     name: "Phishing → Execution",
     icon: "🎣",
@@ -193,33 +355,40 @@ export const USE_CASES = [
       },
       {
         table: "EntraIdSignInEvents",
-        action: "Spot the attacker's sign-in with the stolen session token — different IP/ASN from the victim's normal pattern, same account, no MFA challenge (token already has MFA claim)",
-        kql: `EntraIdSignInEvents
+        action: "Find the Login:Reprocess event — attacker's proxy IP receives the stolen session token. Capture SessionId — the reliable pivot for all downstream cloud activity, regardless of IP",
+        kql: `// Isolate the token issuance: Login:Reprocess = attacker proxy receives the session
+EntraIdSignInEvents
 | where Timestamp > ago(7d)
 | where AccountUpn =~ "<AccountUpn from UrlClickEvents>"
-// Victim's normal IP vs attacker's IP — look for the second sign-in
-| summarize SignIns = count(),
-            IPs = make_set(IPAddress),
-            Countries = make_set(Country)
-    by AccountUpn, bin(Timestamp, 1h)
-| where array_length(IPs) > 1          // Multiple source IPs in short window
+| where ErrorCode == 0
+| where EndPointCall == "Login:Reprocess"
+| project
+    TokenIssuedAt   = Timestamp,
+    AccountUpn, AccountObjectId,
+    SessionId,                      // The stolen token — pivot via AADSessionId downstream
+    AttackerProxyIP = IPAddress,
+    Country, Application
 ---
-// Drill into the suspicious sign-in
+// Full sign-in history — compare victim IP vs attacker proxy IP side-by-side
 EntraIdSignInEvents
 | where Timestamp > ago(7d)
 | where AccountUpn =~ "<AccountUpn>"
-| where IsManaged == false             // Unmanaged / unknown device
-    or RiskLevelDuringSignIn in ("high","medium")
-| project Timestamp, AccountUpn, IPAddress, Country, City,
-          DeviceName, Application, AuthenticationRequirement,
-          RiskLevelDuringSignIn, AccountObjectId, SessionId`,
+| where ErrorCode == 0
+| project Timestamp, AccountUpn, SessionId, IPAddress,
+          Country, EndPointCall, IsManaged,
+          RiskLevelAggregated, AccountObjectId
+| sort by Timestamp asc`,
       },
       {
         table: "CloudAppEvents",
-        action: "Attacker is now in the Azure Portal — look for immediate resource browsing: subscription listing, VM enumeration, IAM inspection",
-        kql: `CloudAppEvents
+        action: "Attacker in Azure Portal — filter by stolen SessionId (AADSessionId in AppAccessContext). SaaS sessions route through Microsoft infra so IPAddress here will be Microsoft datacenter ranges, not the attacker's proxy IP — use AADSessionId",
+        kql: `// AADSessionId in AppAccessContext matches SessionId from Login:Reprocess event
+// IPAddress in CloudAppEvents = Microsoft datacenter ranges for stolen-session activity
+// Attacker proxy IP is still valid for blocking / DeviceNetworkEvents / threat intel
+CloudAppEvents
 | where Timestamp > ago(7d)
-| where AccountObjectId == "<AccountObjectId from EntraIdSignInEvents>"
+| extend AADSessionId = tostring(parse_json(AppAccessContext).AADSessionId)
+| where AADSessionId == "<SessionId from EntraIdSignInEvents>"
 | where Application == "Microsoft Azure"
 | where ActionType in (
     "ListVirtualMachines",
@@ -229,7 +398,7 @@ EntraIdSignInEvents
     "ListResourceGroups",
     "UserLoggedIn")
 | project Timestamp, AccountUpn, ActionType, Application,
-          IPAddress, ObjectName, ObjectId, AdditionalFields
+          IPAddress, ObjectName, ObjectId, AADSessionId
 | order by Timestamp asc`,
       },
       {
@@ -314,7 +483,7 @@ EntraIdSignInEvents
     links: [
       { from: "EmailEvents",       to: "UrlClickEvents",       col: "NetworkMessageId" },
       { from: "UrlClickEvents",    to: "EntraIdSignInEvents",  col: "AccountUpn" },
-      { from: "EntraIdSignInEvents", to: "CloudAppEvents",     col: "AccountObjectId" },
+      { from: "EntraIdSignInEvents", to: "CloudAppEvents",     col: "SessionId → AADSessionId" },
       { from: "CloudAppEvents",    to: "GraphApiAuditEvents",  col: "AccountId" },
       { from: "CloudAppEvents",    to: "CloudAuditEvents",     col: "AccountUpn" },
       { from: "CloudAuditEvents",  to: "CloudProcessEvents",   col: "ResourceName → DeviceName" },
@@ -780,12 +949,12 @@ EntraIdSignInEvents
         kql: `EntraIdSignInEvents
 | where Timestamp > ago(7d)
 | where AccountUpn =~ "<target UPN>"
-| where RiskLevelDuringSignIn in ("high","medium")
+| where RiskLevelAggregated >= 10
     or IsManaged == false
     or AuthenticationProcessingDetails has "Legacy Auth"
 | project Timestamp, AccountUpn, IPAddress, Country,
           City, DeviceName, Application, ErrorCode,
-          RiskLevelDuringSignIn, AccountObjectId`,
+          RiskLevelAggregated, AccountObjectId`,
       },
       {
         table: "CloudAppEvents",
@@ -937,12 +1106,13 @@ EntraIdSignInEvents
 | where Timestamp > ago(7d)
 | where RemoteIPType == "Public"
 | where RemotePort in (443, 80, 21, 22, 25, 587)
-| summarize BytesSent = sum(SentBytes),
-            ConnCount = count()
+| summarize ConnCount = count(),
+            FirstSeen = min(Timestamp),
+            LastSeen  = max(Timestamp)
     by DeviceName, DeviceId, RemoteIP, RemoteUrl,
        InitiatingProcessFileName, bin(Timestamp, 1h)
-| where BytesSent > 10000000           // > 10 MB
-| order by BytesSent desc`,
+| where ConnCount > 50                 // High connection frequency = exfil or C2
+| order by ConnCount desc`,
       },
       {
         table: "DeviceFileEvents",
@@ -1223,7 +1393,7 @@ EntraIdSignInEvents
 | where Timestamp > ago(30d)
 | where AccountUpn =~ "<AccountUpn from IdentityLogonEvents>"
 | project Timestamp, AccountUpn, IPAddress, Country, City,
-          DeviceName, Application, RiskLevelDuringSignIn,
+          DeviceName, Application, RiskLevelAggregated,
           RiskState, ConditionalAccessStatus`,
       },
       {
@@ -1296,132 +1466,6 @@ EntraIdSignInEvents
       { from: "CloudAppEvents",      to: "EmailEvents",        col: "AccountUpn" },
       { from: "AlertInfo",           to: "AlertEvidence",      col: "AlertId" },
       { from: "AlertEvidence",       to: "CloudAppEvents",     col: "AccountUpn" },
-    ],
-  },
-  {
-    id: "becFraud",
-    name: "AiTM → BEC Fraud",
-    icon: "💸",
-    tactic: "Initial Access > Impact",
-    color: "#f97316",
-    desc: "AiTM proxy steals the session cookie, attacker creates inbox rules, reads pending invoices, then impersonates the vendor to redirect a wire transfer.",
-    steps: [
-      {
-        table: "EmailEvents",
-        action: "Find the AiTM phishing lure — finance-themed subjects or Microsoft auth prompts from non-Microsoft domains",
-        kql: `EmailEvents
-| where Timestamp > ago(14d)
-| where DeliveryAction in ("Delivered","DeliveredAsSpam")
-| where Subject has_any (
-    "sign-in","verify","MFA","invoice","payment",
-    "authentication","action required","review document")
-  and SenderFromDomain !endswith "microsoft.com"
-| project Timestamp, SenderFromAddress, SenderFromDomain,
-          RecipientEmailAddress, Subject,
-          DeliveryAction, ThreatTypes, NetworkMessageId`,
-      },
-      {
-        table: "UrlClickEvents",
-        action: "Confirm click through the AiTM proxy — UrlChain shows the relay redirect before the real Microsoft login",
-        kql: `UrlClickEvents
-| where Timestamp > ago(14d)
-| where NetworkMessageId == "<NetworkMessageId from EmailEvents>"
-    or Url has "<proxy_domain from EmailUrlInfo>"
-| project Timestamp, AccountUpn, Url, UrlChain,
-          ActionType, IsClickedThrough, IPAddress`,
-      },
-      {
-        table: "EntraIdSignInEvents",
-        action: "Detect the session hijack — two successful sign-ins from different IPs in a short window (victim IP vs attacker IP)",
-        kql: `EntraIdSignInEvents
-| where Timestamp > ago(14d)
-| where AccountUpn =~ "<AccountUpn from UrlClickEvents>"
-    and ErrorCode == 0
-| summarize SignIns = count(),
-            IPs = make_set(IPAddress),
-            Countries = make_set(Country)
-    by AccountUpn, bin(Timestamp, 1h)
-| where array_length(IPs) > 1
----
-EntraIdSignInEvents
-| where Timestamp > ago(14d)
-| where AccountUpn =~ "<AccountUpn>"
-    and IsManaged == false and ErrorCode == 0
-| project Timestamp, AccountUpn, IPAddress, Country,
-          Application, RiskLevelDuringSignIn, AccountObjectId`,
-      },
-      {
-        table: "CloudAppEvents",
-        action: "Attacker creates inbox rules to suppress security notifications and copy all mail to an external address — ForwardTo and DeleteMessage are the critical fields",
-        kql: `CloudAppEvents
-| where Timestamp > ago(14d)
-| where AccountObjectId == "<AccountObjectId from EntraIdSignInEvents>"
-| where ActionType in (
-    "New-InboxRule","Set-InboxRule",
-    "Set-Mailbox","Add-MailboxPermission",
-    "New-TransportRule")
-| extend RuleDetails = parse_json(RawEventData)
-| project Timestamp, AccountUpn, ActionType,
-          IPAddress, RuleDetails, RawEventData`,
-      },
-      {
-        table: "GraphApiAuditEvents",
-        action: "Attacker reads the inbox via Graph API to find in-flight invoices and identify finance approvers — MailboxItem.Read operations from the attacker's IP",
-        kql: `GraphApiAuditEvents
-| where Timestamp > ago(14d)
-| where AccountId == "<AccountId from CloudAppEvents>"
-| where ActionType has_any (
-    "Mail.Read","MailboxItem.Read",
-    "messages","mailFolders","calendarView")
-| project Timestamp, AccountUpn, ActionType,
-          IPAddress, TargetResources, AdditionalFields`,
-      },
-      {
-        table: "EmailEvents",
-        action: "Find the BEC fraud email sent from the compromised mailbox or lookalike domain requesting fraudulent wire transfer or payment redirect",
-        kql: `EmailEvents
-| where Timestamp > ago(14d)
-| where SenderFromAddress =~ "<compromised_account>"
-    and EmailDirection == "Outbound"
-| where Subject has_any (
-    "invoice","payment","wire","bank account",
-    "transfer","urgent","updated banking","remittance")
-| project Timestamp, SenderFromAddress, RecipientEmailAddress,
-          Subject, DeliveryAction, NetworkMessageId
-| sort by Timestamp desc`,
-      },
-      {
-        table: "AlertInfo",
-        action: "Correlate MDO/MDCA/MDI alerts — impossible travel, inbox rule creation, anomalous send volume, and BEC-pattern detections",
-        kql: `AlertInfo
-| where Timestamp > ago(14d)
-| where Title has_any (
-    "AiTM","impossible travel","token theft",
-    "inbox rule","mail forwarding","BEC",
-    "suspicious sign-in","anomalous")
-    or Category in ("InitialAccess","Persistence","Collection","Exfiltration")
-| project Timestamp, AlertId, Title, Severity,
-          Category, AttackTechniques, ServiceSource`,
-      },
-      {
-        table: "AlertEvidence",
-        action: "Extract confirmed IOCs — attacker IP, compromised UPN, inbox rule name — to scope blast radius and support account recovery",
-        kql: `AlertEvidence
-| where Timestamp > ago(14d)
-| where AlertId == "<AlertId from AlertInfo>"
-| where EntityType in ("User","Ip","Mailbox","CloudApplication")
-| project Timestamp, AlertId, EntityType, EvidenceRole,
-          AccountUpn, AccountObjectId, RemoteIP, AdditionalFields`,
-      },
-    ],
-    links: [
-      { from: "EmailEvents",         to: "UrlClickEvents",       col: "NetworkMessageId" },
-      { from: "UrlClickEvents",      to: "EntraIdSignInEvents",  col: "AccountUpn" },
-      { from: "EntraIdSignInEvents", to: "CloudAppEvents",       col: "AccountObjectId" },
-      { from: "CloudAppEvents",      to: "GraphApiAuditEvents",  col: "AccountId" },
-      { from: "CloudAppEvents",      to: "EmailEvents",          col: "AccountUpn → SenderFromAddress" },
-      { from: "AlertInfo",           to: "AlertEvidence",        col: "AlertId" },
-      { from: "AlertEvidence",       to: "EntraIdSignInEvents",  col: "AccountUpn" },
     ],
   },
   {
@@ -1511,7 +1555,7 @@ EntraIdSignInEvents
             "telegram.exe","discord.exe","slack.exe"))
 | project Timestamp, DeviceName, RemoteIP, RemoteUrl,
           RemotePort, InitiatingProcessFileName,
-          InitiatingProcessId, SentBytes`,
+          InitiatingProcessId`,
       },
       {
         table: "AlertInfo",

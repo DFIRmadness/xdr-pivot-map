@@ -13,12 +13,24 @@ function domainLabel(tableId) {
   return t ? DOMAINS[t.domain].label : "";
 }
 
+function isTablePreview(tableId) {
+  const t = TABLES.find(t => t.id === tableId);
+  return t?.preview ?? false;
+}
+
+function isTableAzure(tableId) {
+  const t = TABLES.find(t => t.id === tableId);
+  return t?.azure ?? false;
+}
+
 // ── Table card ────────────────────────────────────────────────────────────────
 
 function TableCard({ detail }) {
   const [open, setOpen] = useState(false);
   const color = domainColor(detail.id);
   const domain = domainLabel(detail.id);
+  const preview = isTablePreview(detail.id);
+  const azure = isTableAzure(detail.id);
 
   return (
     <div style={{
@@ -51,6 +63,24 @@ function TableCard({ detail }) {
             <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--tx-1)", letterSpacing: "0.02em" }}>
               {detail.id}
             </span>
+            {preview && (
+              <span style={{
+                fontSize: "0.6rem", padding: "2px 7px", borderRadius: 2,
+                background: "#a78bfa18", border: "1px solid #a78bfa55",
+                color: "#a78bfa", letterSpacing: "0.05em", textTransform: "uppercase", flexShrink: 0,
+              }}>
+                Preview
+              </span>
+            )}
+            {azure && (
+              <span style={{
+                fontSize: "0.6rem", padding: "2px 7px", borderRadius: 2,
+                background: "#fb923c18", border: "1px solid #fb923c55",
+                color: "#fb923c", letterSpacing: "0.05em", textTransform: "uppercase", flexShrink: 0,
+              }}>
+                Azure
+              </span>
+            )}
           </div>
           {/* MS description — always visible */}
           <div style={{ fontSize: "0.72rem", color: "var(--tx-4)", lineHeight: 1.6 }}>

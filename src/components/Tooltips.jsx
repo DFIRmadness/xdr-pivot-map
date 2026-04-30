@@ -13,6 +13,11 @@ function tableDeprecation(tableName) {
   return t?.deprecated ? { replacedBy: t.replacedBy } : null;
 }
 
+function tablePreview(tableName) {
+  const t = TABLES.find(t => t.id === tableName);
+  return t?.preview ?? false;
+}
+
 function DeprecatedBadge({ replacedBy, style = {} }) {
   return (
     <span style={{
@@ -23,6 +28,20 @@ function DeprecatedBadge({ replacedBy, style = {} }) {
       ...style,
     }}>
       DEPRECATED → {replacedBy}
+    </span>
+  );
+}
+
+function PreviewBadge({ style = {} }) {
+  return (
+    <span style={{
+      fontSize: 10, padding: "1px 6px", borderRadius: 2,
+      background: "#a78bfa18", border: "1px solid #a78bfa55",
+      color: "#a78bfa", letterSpacing: "0.04em",
+      whiteSpace: "nowrap", flexShrink: 0,
+      ...style,
+    }}>
+      PREVIEW
     </span>
   );
 }
@@ -112,6 +131,7 @@ export function NodeTooltip({ hoveredNode }) {
   if (!table) return null;
   const col = DOMAINS[table.domain].color;
   const dep = tableDeprecation(hoveredNode);
+  const isPreview = tablePreview(hoveredNode);
 
   return (
     <div style={{
@@ -122,13 +142,19 @@ export function NodeTooltip({ hoveredNode }) {
       <div style={{ fontSize: 11, color: col + "88", letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 5 }}>
         {DOMAINS[table.domain].label}
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: dep ? 6 : 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: (dep || isPreview) ? 6 : 0 }}>
         <span style={{ fontSize: 14, fontWeight: 700, color: dep ? "#f59e0b" : col }}>{table.id}</span>
         {dep && <DeprecatedBadge replacedBy={dep.replacedBy} />}
+        {isPreview && !dep && <PreviewBadge />}
       </div>
       {dep && (
         <div style={{ fontSize: 11, color: "#f59e0b99", marginBottom: 6, lineHeight: 1.5 }}>
           This table was renamed to <span style={{ color: "#f59e0b", fontWeight: 600 }}>{dep.replacedBy}</span> in December 2025. Use the new name in all queries.
+        </div>
+      )}
+      {isPreview && !dep && (
+        <div style={{ fontSize: 11, color: "#a78bfa99", marginBottom: 6, lineHeight: 1.5 }}>
+          This table is in public preview. Schema and availability may change before GA release.
         </div>
       )}
       <div style={{ fontSize: 12, color: "var(--tx-3)", marginTop: 5 }}>{table.desc}</div>

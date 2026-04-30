@@ -5,6 +5,14 @@ import { DOMAINS } from "../data/domains.js";
 import { COLUMN_INFO } from "../data/columns.js";
 import { ColumnTooltip } from "./Tooltips.jsx";
 
+const PICERL_META = {
+  identification: { label: "IDENTIFICATION", color: "#00d4ff" },
+  containment:    { label: "CONTAINMENT",    color: "#f97316" },
+  eradication:    { label: "ERADICATION",    color: "#ef4444" },
+  recovery:       { label: "RECOVERY",       color: "#22c55e" },
+  lessons:        { label: "LESSONS LEARNED", color: "#a78bfa" },
+};
+
 function tableColor(tableName) {
   const t = TABLES.find(t => t.id === tableName);
   return t ? DOMAINS[t.domain].color : "#8890b8";
@@ -15,9 +23,22 @@ function domainLabel(tableName) {
   return t ? DOMAINS[t.domain].label : "XDR";
 }
 
+function tablePreview(tableName) {
+  const t = TABLES.find(t => t.id === tableName);
+  return t?.preview ?? false;
+}
+
+function tableAzure(tableName) {
+  const t = TABLES.find(t => t.id === tableName);
+  return t?.azure ?? false;
+}
+
 function StopCard({ step, index, total, roadmapColor, hoveredCol, setHoveredCol }) {
   const [kqlOpen, setKqlOpen] = useState(false);
   const col = tableColor(step.table);
+  const isPreview = tablePreview(step.table);
+  const isAzure = tableAzure(step.table);
+  const picerlMeta = step.picerl ? PICERL_META[step.picerl] : null;
   const isLast = index === total - 1;
 
   return (
@@ -66,10 +87,41 @@ function StopCard({ step, index, total, roadmapColor, hoveredCol, setHoveredCol 
           display: "flex", alignItems: "center", justifyContent: "space-between",
         }}>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: col, letterSpacing: "0.04em" }}>
-              {step.table}
+            <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", marginBottom: 2 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: col, letterSpacing: "0.04em" }}>
+                {step.table}
+              </span>
+              {isPreview && (
+                <span style={{
+                  fontSize: 10, padding: "1px 5px", borderRadius: 2,
+                  background: "#a78bfa18", border: "1px solid #a78bfa55",
+                  color: "#a78bfa", letterSpacing: "0.04em", whiteSpace: "nowrap",
+                }}>
+                  PREVIEW
+                </span>
+              )}
+              {isAzure && (
+                <span style={{
+                  fontSize: 10, padding: "1px 5px", borderRadius: 2,
+                  background: "#fb923c18", border: "1px solid #fb923c55",
+                  color: "#fb923c", letterSpacing: "0.04em", whiteSpace: "nowrap",
+                }}>
+                  AZURE
+                </span>
+              )}
+              {picerlMeta && (
+                <span style={{
+                  fontSize: 10, padding: "1px 5px", borderRadius: 2,
+                  background: picerlMeta.color + "18",
+                  border: `1px solid ${picerlMeta.color}55`,
+                  color: picerlMeta.color,
+                  letterSpacing: "0.04em", whiteSpace: "nowrap",
+                }}>
+                  {picerlMeta.label}
+                </span>
+              )}
             </div>
-            <div style={{ fontSize: 11, color: roadmapColor, fontWeight: 600, marginTop: 2, letterSpacing: "0.05em" }}>
+            <div style={{ fontSize: 11, color: roadmapColor, fontWeight: 600, letterSpacing: "0.05em" }}>
               {step.label}
             </div>
           </div>
@@ -256,7 +308,7 @@ export default function InvestigationRoadmap() {
             Defender XDR
           </div>
           <div style={{ fontSize: 16, fontWeight: 700, color: "var(--tx-1)", lineHeight: 1.3 }}>
-            Roadmap Through<br/>the Data
+            Incident Roadmaps
           </div>
           <div style={{ fontSize: 11, color: "var(--tx-4)", marginTop: 10, letterSpacing: "0.06em" }}>
             IOC pivots and attack scenario walkthroughs

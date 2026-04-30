@@ -8,6 +8,11 @@ function tableDeprecation(tableId) {
   return t?.deprecated ? { replacedBy: t.replacedBy } : null;
 }
 
+function tablePreview(tableId) {
+  const t = TABLES.find(t => t.id === tableId);
+  return t?.preview ?? false;
+}
+
 export default function StepPanel({ activeUC, activeStep, onStepClick }) {
   const [expandedKql, setExpandedKql] = useState(null);
   const [expandedCol, setExpandedCol] = useState(null); // "stepIndex:colKey"
@@ -113,6 +118,7 @@ export default function StepPanel({ activeUC, activeStep, onStepClick }) {
           const isActive = activeStep === i;
           const kqlOpen = expandedKql === i;
           const dep = tableDeprecation(step.table);
+          const isPreview = tablePreview(step.table);
 
           const outgoing = activeUC.links.filter(l => l.from === step.table);
           const incoming = activeUC.links.filter(l => l.to === step.table);
@@ -152,6 +158,15 @@ export default function StepPanel({ activeUC, activeStep, onStepClick }) {
                         color: "#f59e0b", letterSpacing: "0.04em", whiteSpace: "nowrap",
                       }}>
                         DEPRECATED → {dep.replacedBy}
+                      </span>
+                    )}
+                    {isPreview && !dep && (
+                      <span style={{
+                        fontSize: 10, padding: "1px 5px", borderRadius: 2,
+                        background: "#a78bfa18", border: "1px solid #a78bfa55",
+                        color: "#a78bfa", letterSpacing: "0.04em", whiteSpace: "nowrap",
+                      }}>
+                        PREVIEW
                       </span>
                     )}
                   </div>

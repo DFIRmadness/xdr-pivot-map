@@ -69,7 +69,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
         <div style="font-size:1.5rem;flex-shrink:0;">🗺️</div>
         <div>
           <div style="font-size:0.8rem;font-weight:700;color:var(--tx-1);margin-bottom:0.3rem;letter-spacing:0.04em;">
-            Roadmap Through the Data
+            Incident Roadmaps
           </div>
           <div style="font-size:0.7rem;color:var(--tx-3);line-height:1.6;">
             Ordered investigation paths for Email, Device, Identity, Malware, and IP pivots.
@@ -150,7 +150,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
         <div style="font-size:1.5rem;flex-shrink:0;">📥</div>
         <div>
           <div style="font-size:0.8rem;font-weight:700;color:var(--tx-1);margin-bottom:0.3rem;letter-spacing:0.04em;">
-            Obsidian Canvas Export
+            Obsidian Canvas &amp; Cheat Sheet Exports
           </div>
           <div style="font-size:0.7rem;color:var(--tx-3);line-height:1.6;">
             Download the pivot map and investigation roadmaps as Obsidian Canvas files.
@@ -158,6 +158,34 @@ import BaseLayout from "../layouts/BaseLayout.astro";
           </div>
           <div style="margin-top:0.6rem;font-size:0.65rem;color:var(--tx-5);letter-spacing:0.1em;text-transform:uppercase;">
             6 canvas files &nbsp;·&nbsp; Obsidian ≥ 1.1 &nbsp;·&nbsp; offline ready
+          </div>
+        </div>
+      </a>
+      <a href="/xdr-pivot-map/tools/kql-cheat-sheet" style="
+        display:flex;align-items:center;gap:1.5rem;
+        padding:1.25rem 1.5rem;
+        background:var(--bg-card);
+        border:1px solid var(--bd-1);
+        border-left:4px solid #38bdf8;
+        box-shadow:0 4px 24px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.06);
+        color:inherit;text-decoration:none;
+        transition:filter 0.15s,border-left-color 0.15s,box-shadow 0.15s;
+      "
+      onmouseover="this.style.filter='brightness(1.15)';this.style.borderLeftColor='#ffb347';this.style.boxShadow='0 6px 32px rgba(56,189,248,0.18),inset 0 1px 0 rgba(255,255,255,0.08)'"
+      onmouseout="this.style.filter='';this.style.borderLeftColor='#38bdf8';this.style.boxShadow='0 4px 24px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.06)'"
+      >
+        <div style="font-size:1.5rem;flex-shrink:0;">📋</div>
+        <div>
+          <div style="font-size:0.8rem;font-weight:700;color:var(--tx-1);margin-bottom:0.3rem;letter-spacing:0.04em;">
+            KQL Cheat Sheet
+          </div>
+          <div style="font-size:0.7rem;color:var(--tx-3);line-height:1.6;">
+            Quick reference for Kusto operators, time functions, joins, and type casting.
+            JSON parsing patterns for CloudAppEvents, AlertEvidence, and more — including
+            MailItemsAccessed expand patterns for tracking attacker email recon.
+          </div>
+          <div style="margin-top:0.6rem;font-size:0.65rem;color:var(--tx-5);letter-spacing:0.1em;text-transform:uppercase;">
+            8 operator categories &nbsp;·&nbsp; 12 JSON patterns &nbsp;·&nbsp; copy-ready KQL
           </div>
         </div>
       </a>

@@ -16,6 +16,11 @@ function tableDeprecation(tableName) {
   return t?.deprecated ? { replacedBy: t.replacedBy } : null;
 }
 
+function tablePreview(tableName) {
+  const t = TABLES.find(t => t.id === tableName);
+  return t?.preview ?? false;
+}
+
 export default function MitreCrosswalk() {
   const [selectedTactic, setSelectedTactic] = useState(null);
   const [expandedTechnique, setExpandedTechnique] = useState(null);
@@ -331,18 +336,19 @@ export default function MitreCrosswalk() {
                           const kqlOpen = expandedKql === kqlKey;
                           const col = tableColor(mapping.table);
                           const dep = tableDeprecation(mapping.table);
+                          const isPreview = tablePreview(mapping.table);
                           return (
                             <div key={mi} style={{
                               margin: "12px 24px",
                               background: "var(--bg-float)",
-                              border: `1px solid ${dep ? "#f59e0b44" : col + "33"}`,
+                              border: `1px solid ${dep ? "#f59e0b44" : isPreview ? "#a78bfa33" : col + "33"}`,
                               borderRadius: 4, overflow: "hidden",
                             }}>
                               {/* Card header */}
                               <div style={{
                                 padding: "10px 14px",
-                                background: dep ? "#f59e0b0a" : col + "0d",
-                                borderBottom: `1px solid ${dep ? "#f59e0b22" : col + "22"}`,
+                                background: dep ? "#f59e0b0a" : isPreview ? "#a78bfa0a" : col + "0d",
+                                borderBottom: `1px solid ${dep ? "#f59e0b22" : isPreview ? "#a78bfa22" : col + "22"}`,
                                 display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap",
                               }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -356,6 +362,15 @@ export default function MitreCrosswalk() {
                                       color: "#f59e0b", letterSpacing: "0.04em",
                                     }}>
                                       DEPRECATED → {dep.replacedBy}
+                                    </span>
+                                  )}
+                                  {isPreview && !dep && (
+                                    <span style={{
+                                      fontSize: 10, padding: "1px 6px", borderRadius: 2,
+                                      background: "#a78bfa18", border: "1px solid #a78bfa55",
+                                      color: "#a78bfa", letterSpacing: "0.04em",
+                                    }}>
+                                      PREVIEW
                                     </span>
                                   )}
                                 </div>

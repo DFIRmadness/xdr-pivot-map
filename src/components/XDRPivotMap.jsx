@@ -24,7 +24,11 @@ export default function XDRPivotMap() {
     ? new Set(activeUC.links.flatMap(l => [l.from, l.to]))
     : null;
   const domainTableIds = selectedDomain
-    ? new Set(TABLES.filter(t => t.domain === selectedDomain).map(t => t.id))
+    ? new Set([
+        ...TABLES.filter(t => t.domain === selectedDomain).map(t => t.id),
+        "AlertInfo",
+        "AlertEvidence",
+      ])
     : null;
 
   // Combine UC + domain filters: intersect when both active, apply whichever is set
@@ -164,6 +168,37 @@ export default function XDRPivotMap() {
             Select a hunt scenario from the left.<br/><br/>
             The graph highlights the relevant table chain.<br/>
             Click numbered steps to spotlight individual tables.
+          </div>
+        )}
+
+        {/* Table source legend — always visible in graph mode */}
+        {viewMode === "graph" && (
+          <div style={{
+            position: "absolute", bottom: 70, left: 16,
+            background: "var(--bg-float)", border: "1px solid var(--bd-1)", borderRadius: 4,
+            padding: "8px 12px", fontSize: 11, color: "var(--tx-5)", lineHeight: 1.9,
+            pointerEvents: "none",
+          }}>
+            <div style={{ fontSize: 10, letterSpacing: "0.12em", color: "var(--tx-5)", textTransform: "uppercase", marginBottom: 4 }}>
+              Table Source
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+              <span style={{
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                width: 17, height: 17, borderRadius: "50%", flexShrink: 0,
+                border: "1.5px solid var(--tx-5)",
+              }} />
+              Defender XDR
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+              <span style={{
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                width: 17, height: 17, borderRadius: "50%", flexShrink: 0,
+                border: "1.5px solid #fb923c", color: "#fb923c",
+                fontSize: 10, fontWeight: 700, fontFamily: "inherit",
+              }}>S</span>
+              Azure Sentinel
+            </div>
           </div>
         )}
       </div>

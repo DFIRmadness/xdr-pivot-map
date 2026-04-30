@@ -27,8 +27,8 @@ export default function PivotGraph({
   const edgeHitRefs= useRef([]);
   const labelRefs  = useRef({});
   const nodesRef   = useRef([]);   // live node objects with x/y/fx/fy
-  const lockedRef  = useRef(false);
-  const [isLocked, setIsLocked] = useState(false);
+  const lockedRef  = useRef(true);
+  const [isLocked, setIsLocked] = useState(true);
 
   // ── Simulation + zoom + drag ──────────────────────────────────────────────
   useEffect(() => {
@@ -90,6 +90,13 @@ export default function PivotGraph({
     nodes.forEach(node => {
       const el = nodeRefs.current[node.id];
       if (el) d3.select(el).datum(node).call(drag);
+    });
+
+    // Pin all nodes once simulation cools (respects lock state)
+    sim.on("end", () => {
+      if (lockedRef.current) {
+        nodesRef.current.forEach(node => { node.fx = node.x; node.fy = node.y; });
+      }
     });
 
     // Tick
@@ -290,6 +297,14 @@ export default function PivotGraph({
                   onMouseLeave={() => { if (isNodeActive) onNodeHover(null); }}
                 >
                   <circle r={22} fill={col + "22"} stroke={col} strokeWidth="1.5" />
+                  {table.azure && (
+                    <text
+                      textAnchor="middle" dominantBaseline="central"
+                      fontSize="13" fontFamily="'JetBrains Mono', monospace"
+                      fontWeight="700" fill={col}
+                      style={{ pointerEvents: "none", userSelect: "none" }}
+                    >S</text>
+                  )}
                 </g>
               );
             })}

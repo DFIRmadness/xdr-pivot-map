@@ -9,4 +9,5 @@ export const DOMAINS = {
   purview:   { label: "Purview",              color: "#ff47a3" },
   behaviors: { label: "Behaviors (UEBA)",     color: "#facc15" },
   exposure:  { label: "Exposure Graph",       color: "#a78bfa" },
+  azure:     { label: "Azure Sentinel",       color: "#fb923c" },
 };
