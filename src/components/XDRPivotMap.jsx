@@ -171,7 +171,7 @@ export default function XDRPivotMap() {
           </div>
         )}
 
-        {/* Table source legend — always visible in graph mode */}
+        {/* Legend — always visible in graph mode */}
         {viewMode === "graph" && (
           <div style={{
             position: "absolute", bottom: 70, left: 16,
@@ -198,6 +198,26 @@ export default function XDRPivotMap() {
                 fontSize: 10, fontWeight: 700, fontFamily: "inherit",
               }}>S</span>
               Azure Sentinel
+            </div>
+
+            <div style={{ borderTop: "1px solid var(--bd-2)", marginTop: 7, paddingTop: 7 }}>
+              <div style={{ fontSize: 10, letterSpacing: "0.12em", color: "var(--tx-5)", textTransform: "uppercase", marginBottom: 5 }}>
+                Token Tracking
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                <svg width="22" height="22" viewBox="-11 -11 22 22" style={{ flexShrink: 0, overflow: "visible" }}>
+                  <circle r={5} fill="none" stroke="#f0c840" strokeWidth="1.2" strokeDasharray="2 2" strokeDashoffset="0" className="li-ring-inner" />
+                  <circle r={8} fill="none" stroke="#f0c840" strokeWidth="0.9" strokeDasharray="3 1.5" strokeDashoffset="0" className="li-ring-outer"
+                    style={{ filter: "drop-shadow(0 0 2px #f0c840)" }} />
+                </svg>
+                <span style={{ color: "#f0c840cc" }}>Linkable Identifiers</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 1 }}>
+                <svg width="22" height="4" style={{ flexShrink: 0, overflow: "visible" }}>
+                  <line x1="0" y1="2" x2="22" y2="2" stroke="#f0c840" strokeWidth="1.5" strokeDasharray="5 4" className="li-edge-overlay" />
+                </svg>
+                <span style={{ color: "#f0c840cc" }}>Linkable ID edge</span>
+              </div>
             </div>
           </div>
         )}

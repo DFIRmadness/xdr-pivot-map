@@ -16,10 +16,10 @@ export const TABLES = [
   { id: "IdentityLogonEvents",                    domain: "identity",  desc: "Auth events on AD and Microsoft online services" },
   { id: "IdentityDirectoryEvents",                domain: "identity",  desc: "AD DC events: queries, object modifications" },
   { id: "IdentityQueryEvents",                    domain: "identity",  desc: "LDAP / AD object queries" },
-  { id: "EntraIdSignInEvents",                    domain: "identity",  desc: "Entra interactive and non-interactive sign-ins (replaces AADSignInEventsBeta)" },
+  { id: "EntraIdSignInEvents",                    domain: "identity",  desc: "Entra interactive and non-interactive sign-ins (replaces AADSignInEventsBeta)", linkableIds: true, linkableIdCols: [{ col: "SessionId (SID — session-level)" }, { col: "AccountObjectId", highlight: true }] },
   { id: "EntraIdSpnSignInEvents",                 domain: "identity",  desc: "Service principal and managed identity sign-ins" },
   { id: "AADSignInEventsBeta",                    domain: "identity",  desc: "Legacy Entra interactive and non-interactive sign-in events.", deprecated: true, replacedBy: "EntraIdSignInEvents" },
-  { id: "GraphApiAuditEvents",                    domain: "identity",  desc: "Graph API calls made against the tenant" },
+  { id: "GraphApiAuditEvents",                    domain: "identity",  desc: "Graph API calls made against the tenant", linkableIds: true, linkableIdCols: [{ col: "SessionId (SID — session-level)" }, { col: "SignInActivityId (UTI — per-token)" }] },
   { id: "IdentityAccountInfo",                    domain: "identity",  desc: "Account info with link to owning identity" },
 
   // ── Email (MDO) ───────────────────────────────────────────────────────────────
@@ -36,7 +36,7 @@ export const TABLES = [
   { id: "MessageUrlInfo",                         domain: "teams",     desc: "URLs extracted from Teams messages" },
 
   // ── Cloud (MDCA / Defender for Cloud) ─────────────────────────────────────────
-  { id: "CloudAppEvents",                         domain: "cloud",     desc: "Activity in O365 and other cloud apps" },
+  { id: "CloudAppEvents",                         domain: "cloud",     desc: "Activity in O365 and other cloud apps", linkableIds: true, linkableIdCols: [{ col: "AppAccessContext → AADSessionId (SID)" }, { col: "AppAccessContext → UniqueTokenId (UTI)" }, { col: "AccountObjectId", highlight: true }] },
   { id: "CloudAuditEvents",                       domain: "cloud",     desc: "Cloud platform audit events (Defender for Cloud)", preview: true },
   { id: "CloudProcessEvents",                     domain: "cloud",     desc: "Process events in cloud container workloads (AKS/EKS/GKE)", preview: true },
   { id: "CloudDnsEvents",                         domain: "cloud",     desc: "DNS activity in cloud infrastructure", preview: true },
@@ -66,5 +66,5 @@ export const TABLES = [
 
   // ── Azure Sentinel / Log Analytics ────────────────────────────────────────
   { id: "SigninLogs",                             domain: "azure",     azure: true, desc: "Entra ID sign-ins via Azure Monitor. AuthenticationProtocol == 'deviceCode' is the primary filter for device code phishing hunts." },
-  { id: "OfficeActivity",                         domain: "azure",     azure: true, desc: "Exchange, SharePoint, OneDrive, and Teams audit logs from Azure Monitor. Pre-migration equivalent of CloudAppEvents for Sentinel-based environments." },
+  { id: "OfficeActivity",                         domain: "azure",     azure: true, desc: "Exchange, SharePoint, OneDrive, and Teams audit logs from Azure Monitor. Pre-migration equivalent of CloudAppEvents for Sentinel-based environments.", linkableIds: true, linkableIdCols: [{ col: "AppAccessContext → AADSessionId (SID)" }, { col: "AppAccessContext → UniqueTokenId (UTI)" }] },
 ];

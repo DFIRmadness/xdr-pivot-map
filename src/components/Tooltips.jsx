@@ -158,6 +158,29 @@ export function NodeTooltip({ hoveredNode }) {
         </div>
       )}
       <div style={{ fontSize: 12, color: "var(--tx-3)", marginTop: 5 }}>{table.desc}</div>
+      {table.linkableIds && (
+        <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid #f0c84033" }}>
+          <div style={{ fontSize: 10, color: "#f0c840bb", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+            <svg width="14" height="14" viewBox="-7 -7 14 14" style={{ overflow: "visible", flexShrink: 0 }}>
+              <circle r={4} fill="none" stroke="#f0c840" strokeWidth="1" strokeDasharray="2 2" className="li-ring-inner" />
+              <circle r={6.5} fill="none" stroke="#f0c840" strokeWidth="0.75" strokeDasharray="2.5 1.5" className="li-ring-outer" style={{ filter: "drop-shadow(0 0 2px #f0c840)" }} />
+            </svg>
+            Linkable Identifiers
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            {table.linkableIdCols.map(({ col, highlight }, i) => (
+              <span key={i} style={{
+                fontSize: 11, fontFamily: "inherit", borderRadius: 2,
+                padding: "1px 7px", alignSelf: "flex-start",
+                ...(highlight
+                  ? { background: "#f0c840", color: "#1a1200", fontWeight: 700, border: "1px solid #f0c840" }
+                  : { background: "#f0c84012", color: "#f0c840", border: "1px solid #f0c84030" }
+                ),
+              }}>{col}</span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -5,6 +5,13 @@ import { TABLES } from "../data/tables.js";
 import { ALL_EDGES } from "../data/useCases.js";
 import MermaidDiagram from "./MermaidDiagram.jsx";
 
+const LINKABLE_COLOR = "#f0c840";
+const LINKABLE_IDS_SET = new Set(TABLES.filter(t => t.linkableIds).map(t => t.id));
+
+// All C(4,2) pairs — dedicated animated edges, independent of pivot data
+const LI_IDS = [...LINKABLE_IDS_SET];
+const LINKABLE_ID_PAIRS = LI_IDS.flatMap((a, i) => LI_IDS.slice(i + 1).map(b => [a, b]));
+
 export default function PivotGraph({
   activeUC,
   activeTableIds,
@@ -22,9 +29,10 @@ export default function PivotGraph({
   const simRef     = useRef(null);
   const zoomRef    = useRef(null);
   const zoomGrpRef = useRef(null);
-  const nodeRefs   = useRef({});
-  const edgeRefs   = useRef([]);
-  const edgeHitRefs= useRef([]);
+  const nodeRefs    = useRef({});
+  const edgeRefs    = useRef([]);
+  const edgeHitRefs = useRef([]);
+  const liPairRefs  = useRef([]);
   const labelRefs  = useRef({});
   const nodesRef   = useRef([]);   // live node objects with x/y/fx/fy
   const lockedRef  = useRef(true);
@@ -118,6 +126,18 @@ export default function PivotGraph({
         const hit = edgeHitRefs.current[i];
         if (hit) { hit.setAttribute("x1", coords.x1); hit.setAttribute("y1", coords.y1); hit.setAttribute("x2", coords.x2); hit.setAttribute("y2", coords.y2); }
       });
+      // Dedicated linkable-ID pair lines — look up node positions directly
+      const nodeById = {};
+      nodes.forEach(n => { nodeById[n.id] = n; });
+      LINKABLE_ID_PAIRS.forEach(([srcId, tgtId], i) => {
+        const src = nodeById[srcId];
+        const tgt = nodeById[tgtId];
+        const line = liPairRefs.current[i];
+        if (line && src && tgt && src.x != null) {
+          line.setAttribute("x1", src.x); line.setAttribute("y1", src.y);
+          line.setAttribute("x2", tgt.x); line.setAttribute("y2", tgt.y);
+        }
+      });
     });
 
     return () => sim.stop();
@@ -160,6 +180,13 @@ export default function PivotGraph({
         el.setAttribute("stroke-width", tier === "high" ? "2.5" : tier === "low" ? "1" : "2");
         el.style.opacity = tier === "high" ? "1" : tier === "low" ? "0.25" : "0.55";
       }
+    });
+    // Linkable-ID pair lines — dim when both endpoints are inactive
+    LINKABLE_ID_PAIRS.forEach(([srcId, tgtId], i) => {
+      const line = liPairRefs.current[i];
+      if (!line) return;
+      const eitherActive = !activeTableIds || activeTableIds.has(srcId) || activeTableIds.has(tgtId);
+      line.style.opacity = eitherActive ? "0.55" : "0.04";
     });
   }, [activeUC, activeTableIds, activeEdgePairs, isDark, highlightColor]);
 
@@ -285,6 +312,18 @@ export default function PivotGraph({
             })}
           </g>
 
+          {/* Linkable-ID dedicated edges — all C(4,2)=6 pairs, always rendered */}
+          <g style={{ pointerEvents: "none" }}>
+            {LINKABLE_ID_PAIRS.map(([srcId, tgtId], i) => (
+              <line key={`li-${i}`} ref={el => liPairRefs.current[i] = el}
+                className="li-edge-overlay"
+                stroke={LINKABLE_COLOR} strokeWidth="2.5" strokeLinecap="round"
+                strokeDasharray="10 8" strokeDashoffset="0"
+                style={{ opacity: 0.55 }}
+              />
+            ))}
+          </g>
+
           {/* Node circles */}
           <g>
             {TABLES.map(table => {
@@ -297,6 +336,18 @@ export default function PivotGraph({
                   onMouseLeave={() => { if (isNodeActive) onNodeHover(null); }}
                 >
                   <circle r={22} fill={col + "22"} stroke={col} strokeWidth="1.5" />
+                  {table.linkableIds && (<>
+                    <circle r={29} fill="none" stroke={LINKABLE_COLOR} strokeWidth="1.5"
+                      strokeDasharray="4 4" strokeDashoffset="0"
+                      className="li-ring-inner"
+                      style={{ pointerEvents: "none" }}
+                    />
+                    <circle r={36} fill="none" stroke={LINKABLE_COLOR} strokeWidth="1"
+                      strokeDasharray="8 4" strokeDashoffset="0"
+                      className="li-ring-outer"
+                      style={{ pointerEvents: "none", filter: `drop-shadow(0 0 3px ${LINKABLE_COLOR})` }}
+                    />
+                  </>)}
                   {table.azure && (
                     <text
                       textAnchor="middle" dominantBaseline="central"

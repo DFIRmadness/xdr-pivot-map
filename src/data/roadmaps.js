@@ -834,7 +834,7 @@ UrlClickEvents
         table: "EntraIdSignInEvents",
         label: "The Session Hijack",
         picerl: "identification",
-        goal: "This is the token issuance event — the moment the attacker receives the stolen session. When the victim completes MFA through the AiTM proxy, the proxy hands the completed authentication back to Microsoft. Entra records this as a successful sign-in from the attacker's proxy IP with EndPointCall == 'Login:Reprocess'. The SessionId on this event is the session token the attacker now holds and is the single most important artifact in the investigation. The attacker proxy IP on this event is a high-value IOC — block it in Conditional Access, hunt it in DeviceNetworkEvents, search threat intel for related infrastructure, and look for other victims in EntraIdSignInEvents from the same IP. For subsequent SaaS activity (CloudAppEvents, OfficeActivity), use SessionId as the primary filter — those tables will show Microsoft datacenter IPs rather than the attacker's proxy IP because stolen sessions route through Microsoft infrastructure. SessionId is the thread that doesn't change across SaaS tables.",
+        goal: "This is the token issuance event — the moment the attacker receives the stolen session. When the victim completes MFA through the AiTM proxy, the proxy hands the completed authentication back to Microsoft. Entra records this as a successful sign-in from the attacker's proxy IP with EndPointCall == 'Login:Reprocess'. The SessionId on this event is the session token the attacker now holds and is the single most important artifact in the investigation. Microsoft's linkable identifier framework embeds two tracking IDs in every access token: the Session ID (SID, session-level — one value covers all tokens from this root auth) and the Unique Token Identifier (UTI, per-token — every individual access token gets its own GUID). In EntraIdSignInEvents, only SessionId is exposed. Downstream in CloudAppEvents and OfficeActivity, both identifiers are accessible inside the AppAccessContext JSON column: AADSessionId (the SID) and UniqueTokenId (the UTI). Use SessionId/AADSessionId to track the entire stolen session; use UniqueTokenId to pinpoint a specific access token. The attacker proxy IP on this event is a high-value IOC — block it in Conditional Access, hunt it in DeviceNetworkEvents, search threat intel for related infrastructure, and look for other victims in EntraIdSignInEvents from the same IP. For SaaS activity, IP is Microsoft datacenter ranges — use AADSessionId instead.",
         pivotColumns: ["AccountUpn", "AccountObjectId", "SessionId", "IPAddress", "EndPointCall", "ConditionalAccessStatus", "RiskLevelAggregated"],
         kql: `// Step 1: Full sign-in history — spot the two sessions (victim IP vs. attacker proxy IP)
 EntraIdSignInEvents
@@ -871,13 +871,15 @@ EntraIdSignInEvents
         table: "CloudAppEvents",
         label: "Azure Portal Recon",
         picerl: "identification",
-        goal: "With the stolen session token in hand, the attacker opens Azure Portal and enumerates resources. Filter by AADSessionId — extracted from the AppAccessContext JSON column. This is the right pivot because stolen SaaS sessions route through Microsoft infrastructure, so the IPAddress column in CloudAppEvents will show Microsoft datacenter ranges rather than the attacker's proxy IP. The known attacker proxy IP is still worth hunting: add it as a secondary filter to confirm, and carry it for blocking and threat intel. AADSessionId will be consistent across every action the attacker takes in this session. Look for rapid ListVirtualMachines, ListResourceGroups, ListSubscriptions, and List Role Assignments in sequence — this recon pattern takes seconds and is characteristic of scripted enumeration. ObjectName reveals the VMs and resource groups the attacker was targeting.",
+        goal: "With the stolen session token in hand, the attacker opens Azure Portal and enumerates resources. Filter by AADSessionId — the session-level linkable identifier (SID claim) extracted from the AppAccessContext JSON column. This is the right pivot because stolen SaaS sessions route through Microsoft infrastructure, so the IPAddress column in CloudAppEvents will show Microsoft datacenter ranges rather than the attacker's proxy IP. Also extract UniqueTokenId — the per-token linkable identifier (UTI claim) from AppAccessContext — to track the specific access token used for each Azure API call. AADSessionId gives you the full session picture; UniqueTokenId lets you attribute individual actions to a specific token issuance. AADSessionId will be consistent across every action the attacker takes in this session. Look for rapid ListVirtualMachines, ListResourceGroups, ListSubscriptions, and List Role Assignments in sequence — this recon pattern takes seconds and is characteristic of scripted enumeration. ObjectName reveals the VMs and resource groups the attacker was targeting.",
         pivotColumns: ["AppAccessContext", "AccountObjectId", "AccountUpn", "Application", "ActionType", "ObjectName"],
-        kql: `// Filter by the stolen SessionId — reliable across all post-compromise cloud activity
-// AADSessionId inside AppAccessContext matches SessionId from Login:Reprocess
+        kql: `// AppAccessContext carries two linkable identifiers per the Microsoft Entra token framework:
+// AADSessionId = SID claim (session-level) — matches SessionId from Login:Reprocess
+// UniqueTokenId = UTI claim (per-token) — unique GUID for each individual access token
 CloudAppEvents
 | where Timestamp > ago(14d)
-| extend AADSessionId = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend AADSessionId  = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend UniqueTokenId = tostring(parse_json(AppAccessContext).UniqueTokenId)
 | where AADSessionId == "<SessionId_from_EntraIdSignInEvents>"
 | where Application == "Microsoft Azure"
 | where ActionType in (
@@ -892,18 +894,20 @@ CloudAppEvents
   )
 | project Timestamp, Application, ActionType,
           IPAddress, UserAgent, ObjectName, ObjectId,
-          AADSessionId, RawEventData
+          AADSessionId, UniqueTokenId, RawEventData
 | sort by Timestamp asc
 ---
 // Broad view: all activity under this stolen session across every application
 CloudAppEvents
 | where Timestamp > ago(14d)
-| extend AADSessionId = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend AADSessionId  = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend UniqueTokenId = tostring(parse_json(AppAccessContext).UniqueTokenId)
 | where AADSessionId == "<SessionId>"
 | summarize
-    ActionCount  = count(),
-    ActionTypes  = make_set(ActionType),
-    Applications = make_set(Application)
+    ActionCount    = count(),
+    ActionTypes    = make_set(ActionType),
+    Applications   = make_set(Application),
+    TokensUsed     = dcount(UniqueTokenId)
   by bin(Timestamp, 5m), IPAddress
 | sort by Timestamp asc`,
       },
@@ -911,16 +915,19 @@ CloudAppEvents
         table: "OfficeActivity",
         label: "Office 365 Activity Under Stolen Session",
         picerl: "containment",
-        goal: "Some AiTM attackers access Office 365 apps (Exchange, SharePoint, OneDrive) in parallel with or before pivoting to Azure. OfficeActivity in Sentinel covers the same workloads as CloudAppEvents in XDR but from the Log Analytics pipeline. Filter by AADSessionId extracted from AppAccessContext — the same SessionId captured from the Login:Reprocess event. This is especially important if the attacker's session scope included Exchange or SharePoint resources. Cross-referencing OfficeActivity with CloudAppEvents for the same SessionId confirms the full breadth of the session's activity across Microsoft services. Run in your Log Analytics workspace or Sentinel.",
+        goal: "Some AiTM attackers access Office 365 apps (Exchange, SharePoint, OneDrive, Teams) in parallel with or before pivoting to Azure. OfficeActivity in Sentinel covers the same workloads as CloudAppEvents in XDR but from the Log Analytics pipeline. Filter by AADSessionId (session-level, SID claim) or UniqueTokenId (per-token, UTI claim) — both extracted from the AppAccessContext JSON column, same as in CloudAppEvents. Per the Microsoft linkable identifier framework, Exchange, SharePoint, and Teams audit logs all carry AADSessionId and UniqueTokenId inside AppAccessContext. Cross-referencing OfficeActivity with CloudAppEvents for the same AADSessionId and UniqueTokenId confirms the full breadth of the session's activity across Microsoft services. Run in your Log Analytics workspace or Sentinel.",
         pivotColumns: ["AppAccessContext", "UserId", "Operation", "Workload", "ClientIP", "ObjectId"],
         kql: `// Run in Log Analytics / Sentinel — not XDR Advanced Hunting
-// AADSessionId in AppAccessContext matches SessionId from Login:Reprocess in EntraIdSignInEvents
+// AppAccessContext carries two linkable identifiers:
+// AADSessionId = SID claim (session-level) — matches SessionId from Login:Reprocess
+// UniqueTokenId = UTI claim (per-token) — unique GUID per access token
 OfficeActivity
 | where TimeGenerated > ago(14d)
-| extend AADSessionId = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend AADSessionId  = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend UniqueTokenId = tostring(parse_json(AppAccessContext).UniqueTokenId)
 | where AADSessionId == "<SessionId_from_EntraIdSignInEvents>"
 | project TimeGenerated, UserId, Operation, Workload,
-          ClientIP, ObjectId, AADSessionId
+          ClientIP, ObjectId, AADSessionId, UniqueTokenId
 | sort by TimeGenerated asc
 ---
 // Broader: all Office 365 activity for the compromised UPN in the attack window
@@ -928,9 +935,10 @@ OfficeActivity
 | where TimeGenerated > ago(14d)
 | where UserId =~ "<AccountUpn>"
 | where Workload in ("Exchange","SharePoint","OneDrive","MicrosoftTeams")
-| extend AADSessionId = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend AADSessionId  = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend UniqueTokenId = tostring(parse_json(AppAccessContext).UniqueTokenId)
 | project TimeGenerated, UserId, Operation, Workload,
-          ClientIP, ObjectId, SiteUrl, AADSessionId
+          ClientIP, ObjectId, SiteUrl, AADSessionId, UniqueTokenId
 | sort by TimeGenerated asc`,
       },
       {
@@ -1298,7 +1306,7 @@ GraphApiAuditEvents
         table: "EntraIdSignInEvents",
         label: "The Session Hijack",
         picerl: "identification",
-        goal: "This is the token issuance event. When the victim completes MFA through the AiTM proxy, Entra records the re-processed authentication from the attacker's proxy IP with EndPointCall == 'Login:Reprocess'. The SessionId on this event is the stolen session token. The attacker proxy IP captured here is a high-value IOC — block it in Conditional Access, hunt it in DeviceNetworkEvents, look for other victims, and search threat intel. For tracking subsequent SaaS activity (CloudAppEvents, OfficeActivity), use SessionId as the primary filter — those tables show Microsoft datacenter IPs rather than the attacker's proxy IP because stolen sessions route through Microsoft infrastructure. Carry both the attacker proxy IP and SessionId forward: IP for blocking and network hunting, SessionId for SaaS table pivots.",
+        goal: "This is the token issuance event. When the victim completes MFA through the AiTM proxy, Entra records the re-processed authentication from the attacker's proxy IP with EndPointCall == 'Login:Reprocess'. The SessionId on this event is the stolen session token. Microsoft's linkable identifier framework embeds two tracking IDs in every access token: the Session ID (SID, session-level — one value covers all tokens from this root auth) and the Unique Token Identifier (UTI, per-token — every individual access token gets its own GUID). In EntraIdSignInEvents, only SessionId (the SID) is exposed — no UTI column exists in the Advanced Hunting schema. Downstream, both identifiers flow into CloudAppEvents and OfficeActivity inside the AppAccessContext JSON column: AADSessionId (the SID) and UniqueTokenId (the UTI). The attacker proxy IP captured here is a high-value IOC — block it in Conditional Access, hunt it in DeviceNetworkEvents, look for other victims. For SaaS tables use AADSessionId (session-level) or UniqueTokenId (per-token) from AppAccessContext — not IP, which shows Microsoft datacenter ranges.",
         pivotColumns: ["AccountUpn", "AccountObjectId", "SessionId", "IPAddress", "EndPointCall", "ConditionalAccessStatus", "RiskLevelAggregated"],
         kql: `// Step 1: Full sign-in history — compare the two sessions
 EntraIdSignInEvents
@@ -1331,12 +1339,15 @@ EntraIdSignInEvents
         table: "CloudAppEvents",
         label: "Inbox Rule Creation",
         picerl: "containment",
-        goal: "The attacker's first priority after obtaining the session token is persistence: create inbox rules that silently forward all incoming mail to an external address and hide security notification emails. Filter by AADSessionId extracted from AppAccessContext — this matches the SessionId from the Login:Reprocess event and reliably identifies the attacker's session regardless of what Microsoft infrastructure IP the requests appear to come from. New-InboxRule with ForwardTo pointing to a free email provider is a confirmed compromise indicator. Set-Mailbox with ForwardingSmtpAddress survives password resets. Parse RawEventData as JSON to extract the rule conditions and actions.",
+        goal: "The attacker's first priority after obtaining the session token is persistence: create inbox rules that silently forward all incoming mail to an external address and hide security notification emails. Filter by AADSessionId (session-level SID) extracted from AppAccessContext — this matches the SessionId from the Login:Reprocess event. Also extract UniqueTokenId (per-token UTI) from AppAccessContext — this lets you identify the specific access token the attacker used for rule creation, useful if the attacker refreshed tokens mid-session. New-InboxRule with ForwardTo pointing to a free email provider is a confirmed compromise indicator. Set-Mailbox with ForwardingSmtpAddress survives password resets. Parse RawEventData as JSON to extract the rule conditions and actions.",
         pivotColumns: ["AppAccessContext", "AccountObjectId", "AccountUpn", "ActionType", "RawEventData"],
-        kql: `// Filter by stolen SessionId — not IP address (routes through Microsoft infra post-token-theft)
+        kql: `// AppAccessContext carries two linkable identifiers:
+// AADSessionId = SID claim (session-level) — filter by this to scope the stolen session
+// UniqueTokenId = UTI claim (per-token) — use to trace the specific token used for rule creation
 CloudAppEvents
 | where Timestamp > ago(14d)
-| extend AADSessionId = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend AADSessionId  = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend UniqueTokenId = tostring(parse_json(AppAccessContext).UniqueTokenId)
 | where AADSessionId == "<SessionId_from_EntraIdSignInEvents>"
 | where ActionType in (
     "New-InboxRule","Set-InboxRule",
@@ -1344,7 +1355,7 @@ CloudAppEvents
     "New-TransportRule","Set-TransportRule")
 | extend RuleDetails = parse_json(RawEventData)
 | project Timestamp, AccountUpn, ActionType,
-          IPAddress, UserAgent, AADSessionId,
+          IPAddress, UserAgent, AADSessionId, UniqueTokenId,
           RuleDetails, RawEventData
 | sort by Timestamp asc`,
       },
@@ -1352,13 +1363,15 @@ CloudAppEvents
         table: "CloudAppEvents",
         label: "Mailbox Reconnaissance",
         picerl: "containment",
-        goal: "With the inbox rule suppressing alerts, the attacker reads the victim's email to understand payment workflows, find in-flight vendor invoices, and identify banking details to substitute. Filter by AADSessionId — CloudAppEvents will show Microsoft datacenter IPs for these actions (not the attacker's proxy IP) because the stolen SaaS session routes through Microsoft infrastructure. Two mv-expand calls are needed on MailItemsAccessed: first to flatten the Folders array, then to flatten FolderItems — producing one row per email with FolderPath and InternetMessageId as separate columns. MailItemsAccessed does not log Subject directly; join to EmailEvents on InternetMessageId to recover it. SearchQueryInitiatedExchange reveals which terms the attacker searched — look for 'invoice', 'wire', 'payment', 'bank'. High MailItemsAccessed volume in a short window under the stolen session is the recon pattern.",
+        goal: "With the inbox rule suppressing alerts, the attacker reads the victim's email to understand payment workflows, find in-flight vendor invoices, and identify banking details to substitute. Filter by AADSessionId (session-level SID) — CloudAppEvents will show Microsoft datacenter IPs for these actions. Also extract UniqueTokenId (per-token UTI) from AppAccessContext to see if the attacker refreshed their access token mid-recon (a new UniqueTokenId for the same AADSessionId indicates token refresh). Two mv-expand calls are needed on MailItemsAccessed: first to flatten the Folders array, then to flatten FolderItems — producing one row per email. MailItemsAccessed does not log Subject directly; join to EmailEvents on InternetMessageId to recover it. SearchQueryInitiatedExchange reveals which terms the attacker searched — look for 'invoice', 'wire', 'payment', 'bank'. High MailItemsAccessed volume in a short window under the stolen session is the recon pattern.",
         pivotColumns: ["AppAccessContext", "AccountObjectId", "AccountUpn", "ActionType", "FolderPath", "InternetMessageId", "Subject"],
         kql: `// ── Part 1: Inbox rules — persistence mechanism ──────────────────────────────
-// AADSessionId is the reliable filter — IP will match Microsoft datacenter ranges
+// AADSessionId = SID (session-level); UniqueTokenId = UTI (per-token)
+// Multiple distinct UniqueTokenIds under the same AADSessionId = attacker refreshed the token
 CloudAppEvents
 | where Timestamp > ago(14d)
-| extend AADSessionId = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend AADSessionId  = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend UniqueTokenId = tostring(parse_json(AppAccessContext).UniqueTokenId)
 | where AADSessionId == "<SessionId_from_EntraIdSignInEvents>"
 | where ActionType in (
     "New-InboxRule","Set-InboxRule","Set-Mailbox","UpdateInboxRules")
@@ -1368,7 +1381,7 @@ CloudAppEvents
     ForwardTo  = tostring(raw.ForwardTo),
     DeleteMsg  = tobool(raw.DeleteMessage),
     BodyFilter = tostring(raw.BodyContains)
-| project Timestamp, AccountUpn, AADSessionId, IPAddress,
+| project Timestamp, AccountUpn, AADSessionId, UniqueTokenId, IPAddress,
           ActionType, RuleName, ForwardTo, DeleteMsg, BodyFilter
 | sort by Timestamp asc
 ---
@@ -1377,7 +1390,8 @@ CloudAppEvents
 CloudAppEvents
 | where Timestamp > ago(14d)
 | where ActionType == "MailItemsAccessed"
-| extend AADSessionId = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend AADSessionId  = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend UniqueTokenId = tostring(parse_json(AppAccessContext).UniqueTokenId)
 | where AADSessionId == "<SessionId_from_EntraIdSignInEvents>"
 | extend raw = parse_json(RawEventData)
 | mv-expand Folder = raw.Folders
@@ -1391,7 +1405,7 @@ CloudAppEvents
     | where Timestamp > ago(14d)
     | project InternetMessageId, Subject, SenderFromAddress, RecipientEmailAddress
 ) on InternetMessageId
-| project Timestamp, AccountUpn, AADSessionId, IPAddress,
+| project Timestamp, AccountUpn, AADSessionId, UniqueTokenId, IPAddress,
           FolderPath, InternetMessageId,
           Subject, SenderFromAddress, SizeInBytes
 | sort by Timestamp asc
@@ -1400,14 +1414,15 @@ CloudAppEvents
 CloudAppEvents
 | where Timestamp > ago(14d)
 | where ActionType == "SearchQueryInitiatedExchange"
-| extend AADSessionId = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend AADSessionId  = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend UniqueTokenId = tostring(parse_json(AppAccessContext).UniqueTokenId)
 | where AADSessionId == "<SessionId_from_EntraIdSignInEvents>"
 | extend raw = parse_json(RawEventData)
 | extend
     SearchQuery = tostring(raw.SearchQuery),
     ResultCount = toint(raw.ItemCount),
     FolderPath  = tostring(raw.FolderPath)
-| project Timestamp, AccountUpn, AADSessionId, IPAddress,
+| project Timestamp, AccountUpn, AADSessionId, UniqueTokenId, IPAddress,
           SearchQuery, ResultCount, FolderPath
 | sort by Timestamp asc`,
       },
@@ -1415,31 +1430,34 @@ CloudAppEvents
         table: "OfficeActivity",
         label: "Mailbox Activity in Sentinel",
         picerl: "containment",
-        goal: "OfficeActivity in Sentinel covers the same Exchange, SharePoint, and OneDrive operations as CloudAppEvents in XDR, but from the Log Analytics pipeline. Cross-referencing both tables against the same stolen SessionId gives you a complete picture — operations that appear in one but not the other may indicate log forwarding gaps. Filter by AADSessionId from AppAccessContext, which matches the SessionId extracted from the Login:Reprocess event. Inbox rule creation (New-InboxRule, Set-MailboxAutoReplyConfiguration) and high-volume MailItemsAccessed are the primary signals. UserId in OfficeActivity is the UPN — maps to AccountUpn in XDR tables. Run in your Log Analytics workspace or Sentinel.",
+        goal: "OfficeActivity in Sentinel covers the same Exchange, SharePoint, and OneDrive operations as CloudAppEvents in XDR, but from the Log Analytics pipeline. Cross-referencing both tables against the same stolen SessionId gives you a complete picture. Per the Microsoft linkable identifier framework, Exchange, SharePoint, and Teams audit logs all carry AADSessionId (session-level SID) and UniqueTokenId (per-token UTI) inside the AppAccessContext JSON column. Use AADSessionId to scope the full stolen session; use UniqueTokenId to match a specific CloudAppEvents token event with its OfficeActivity counterpart. UserId in OfficeActivity is the UPN — maps to AccountUpn in XDR tables. Run in your Log Analytics workspace or Sentinel.",
         pivotColumns: ["AppAccessContext", "UserId", "Operation", "Workload", "ClientIP", "ObjectId"],
         kql: `// Run in Log Analytics / Sentinel — not XDR Advanced Hunting
-// AADSessionId in AppAccessContext matches SessionId from Login:Reprocess in EntraIdSignInEvents
+// AppAccessContext carries two linkable identifiers:
+// AADSessionId = SID (session-level); UniqueTokenId = UTI (per-token)
 OfficeActivity
 | where TimeGenerated > ago(14d)
-| extend AADSessionId = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend AADSessionId  = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend UniqueTokenId = tostring(parse_json(AppAccessContext).UniqueTokenId)
 | where AADSessionId == "<SessionId_from_EntraIdSignInEvents>"
 | where Workload == "Exchange"
 | project TimeGenerated, UserId, Operation, Workload,
-          ClientIP, ObjectId, AADSessionId
+          ClientIP, ObjectId, AADSessionId, UniqueTokenId
 | sort by TimeGenerated asc
 ---
-// Hunt by UPN across all workloads — cross-reference session IDs between results
+// Hunt by UPN across all workloads — cross-reference session and token IDs between results
 OfficeActivity
 | where TimeGenerated > ago(14d)
 | where UserId =~ "<AccountUpn>"
 | where Workload in ("Exchange","SharePoint","OneDrive")
-| extend AADSessionId = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend AADSessionId  = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend UniqueTokenId = tostring(parse_json(AppAccessContext).UniqueTokenId)
 | where Operation in (
     "MailItemsAccessed","New-InboxRule","Set-InboxRule",
     "Set-Mailbox","HardDelete","MoveToDeletedItems",
     "SearchQueryInitiatedExchange","FileDownloaded","AnonymousLinkCreated")
 | project TimeGenerated, UserId, Operation, Workload,
-          ClientIP, ObjectId, AADSessionId
+          ClientIP, ObjectId, AADSessionId, UniqueTokenId
 | sort by TimeGenerated asc`,
       },
       {
@@ -1462,14 +1480,15 @@ EmailEvents
 | sort by Timestamp desc
 
 // Confirm: send action under the stolen session in CloudAppEvents
-// AADSessionId matches SessionId from Login:Reprocess — proves stolen session sent the email
+// AADSessionId = session-level (SID); UniqueTokenId = per-token (UTI) — both from AppAccessContext
 CloudAppEvents
 | where Timestamp > ago(14d)
-| extend AADSessionId = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend AADSessionId  = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend UniqueTokenId = tostring(parse_json(AppAccessContext).UniqueTokenId)
 | where AADSessionId == "<SessionId_from_EntraIdSignInEvents>"
 | where ActionType in ("Send","MailSend","New-Message","SubmitMessage")
 | project Timestamp, AccountUpn, ActionType, Application,
-          IPAddress, AADSessionId, RawEventData`,
+          IPAddress, AADSessionId, UniqueTokenId, RawEventData`,
       },
       {
         table: "AlertInfo",

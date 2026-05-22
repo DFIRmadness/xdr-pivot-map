@@ -10,6 +10,29 @@ export const USE_CASES = [
     desc: "AiTM proxy steals the session cookie, attacker creates inbox rules, reads pending invoices, then impersonates the vendor to redirect a wire transfer.",
     steps: [
       {
+        table: "AlertInfo",
+        action: "Triage existing detections before walking the kill chain — MDO flags the AiTM lure, MDCA fires on impossible travel and inbox rule creation. AlertEvidence IOCs anchor every downstream query",
+        kql: `AlertInfo
+| where Timestamp > ago(14d)
+| where Title has_any (
+    "AiTM","impossible travel","token theft",
+    "inbox rule","mail forwarding","BEC",
+    "suspicious sign-in","anomalous")
+    or Category in ("InitialAccess","Persistence","Collection","Exfiltration")
+| project Timestamp, AlertId, Title, Severity,
+          Category, AttackTechniques, ServiceSource`,
+      },
+      {
+        table: "AlertEvidence",
+        action: "Extract IOCs from BEC alert evidence — compromised UPN, attacker proxy IP, inbox rule name — to anchor every subsequent query",
+        kql: `AlertEvidence
+| where Timestamp > ago(14d)
+| where AlertId == "<AlertId from AlertInfo>"
+| where EntityType in ("User","Ip","Mailbox","CloudApplication")
+| project Timestamp, AlertId, EntityType, EvidenceRole,
+          AccountUpn, AccountObjectId, RemoteIP, AdditionalFields`,
+      },
+      {
         table: "EmailEvents",
         action: "Find the AiTM phishing lure — finance-themed subjects or Microsoft auth prompts from non-Microsoft domains",
         kql: `EmailEvents
@@ -35,8 +58,10 @@ export const USE_CASES = [
       },
       {
         table: "EntraIdSignInEvents",
-        action: "Find Login:Reprocess event — this is where the attacker receives the stolen session token. Capture SessionId as the primary pivot for all downstream steps",
+        action: "Find Login:Reprocess event — attacker receives the stolen session token. Capture SessionId (session-level pivot) for all downstream SaaS steps. The per-token UniqueTokenId (UTI) is NOT a column in EntraIdSignInEvents — it surfaces downstream as parse_json(AppAccessContext).UniqueTokenId in CloudAppEvents and OfficeActivity",
         kql: `// Login:Reprocess = attacker's proxy receives the session token from Entra
+// SessionId = session-level linkable identifier — use as AADSessionId in CloudAppEvents
+// UniqueTokenId (UTI) is per-token — not in this table; extract from AppAccessContext downstream
 EntraIdSignInEvents
 | where Timestamp > ago(14d)
 | where AccountUpn =~ "<AccountUpn from UrlClickEvents>"
@@ -45,7 +70,7 @@ EntraIdSignInEvents
 | project
     TokenIssuedAt   = Timestamp,
     AccountUpn, AccountObjectId,
-    SessionId,                      // The stolen token — use as AADSessionId downstream
+    SessionId,                      // SID — matches AADSessionId in AppAccessContext downstream
     AttackerProxyIP = IPAddress,
     Country, Application
 ---
@@ -61,11 +86,14 @@ EntraIdSignInEvents
       },
       {
         table: "CloudAppEvents",
-        action: "Attacker creates inbox rules to forward all mail — filter by stolen SessionId (AADSessionId in AppAccessContext), not IP address",
-        kql: `// AADSessionId in AppAccessContext matches SessionId from Login:Reprocess event
+        action: "Attacker creates inbox rules to forward all mail — filter by stolen SessionId via AADSessionId in AppAccessContext. Also extract UniqueTokenId for per-token tracking alongside the session-level pivot",
+        kql: `// AppAccessContext carries two linkable identifiers:
+// AADSessionId = session-level (SID claim) — matches SessionId from Login:Reprocess
+// UniqueTokenId = per-token (UTI claim) — unique to each individual access token
 CloudAppEvents
 | where Timestamp > ago(14d)
-| extend AADSessionId = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend AADSessionId  = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend UniqueTokenId = tostring(parse_json(AppAccessContext).UniqueTokenId)
 | where AADSessionId == "<SessionId from EntraIdSignInEvents>"
 | where ActionType in (
     "New-InboxRule","Set-InboxRule",
@@ -73,17 +101,18 @@ CloudAppEvents
     "New-TransportRule")
 | extend RuleDetails = parse_json(RawEventData)
 | project Timestamp, AccountUpn, ActionType,
-          IPAddress, AADSessionId, RuleDetails, RawEventData`,
+          IPAddress, AADSessionId, UniqueTokenId, RuleDetails, RawEventData`,
       },
       {
         table: "CloudAppEvents",
-        action: "Attacker reads the mailbox — MailItemsAccessed under the stolen session. Double mv-expand gives one row per email with FolderPath, InternetMessageId, and Subject (via EmailEvents join) as separate columns",
+        action: "Attacker reads the mailbox — MailItemsAccessed under the stolen session. Double mv-expand gives one row per email. AADSessionId = session-level pivot; UniqueTokenId = per-token pivot for pinpointing the exact token used for each access",
         kql: `// MailItemsAccessed: double mv-expand → one row per accessed email
+// SaaS sessions route through Microsoft infra — filter by AADSessionId, not IP
 CloudAppEvents
 | where Timestamp > ago(14d)
 | where ActionType == "MailItemsAccessed"
-// SaaS sessions route through Microsoft infra — filter by AADSessionId, not IP
-| extend AADSessionId = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend AADSessionId  = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend UniqueTokenId = tostring(parse_json(AppAccessContext).UniqueTokenId)
 | where AADSessionId == "<SessionId from EntraIdSignInEvents>"
 | extend raw = parse_json(RawEventData)
 | mv-expand Folder = raw.Folders
@@ -97,7 +126,7 @@ CloudAppEvents
     | where Timestamp > ago(14d)
     | project InternetMessageId, Subject, SenderFromAddress, RecipientEmailAddress
 ) on InternetMessageId
-| project Timestamp, AccountUpn, AADSessionId, IPAddress,
+| project Timestamp, AccountUpn, AADSessionId, UniqueTokenId, IPAddress,
           FolderPath, InternetMessageId,
           Subject, SenderFromAddress, SizeInBytes
 | sort by Timestamp asc
@@ -106,12 +135,13 @@ CloudAppEvents
 CloudAppEvents
 | where Timestamp > ago(14d)
 | where ActionType == "SearchQueryInitiatedExchange"
-| extend AADSessionId = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend AADSessionId  = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend UniqueTokenId = tostring(parse_json(AppAccessContext).UniqueTokenId)
 | where AADSessionId == "<SessionId from EntraIdSignInEvents>"
 | extend raw = parse_json(RawEventData)
 | extend SearchQuery = tostring(raw.SearchQuery)
 | extend ResultCount = toint(raw.ItemCount)
-| project Timestamp, AccountUpn, AADSessionId, IPAddress,
+| project Timestamp, AccountUpn, AADSessionId, UniqueTokenId, IPAddress,
           SearchQuery, ResultCount
 | sort by Timestamp asc`,
       },
@@ -128,31 +158,7 @@ CloudAppEvents
 | project Timestamp, SenderFromAddress, RecipientEmailAddress,
           Subject, DeliveryAction, NetworkMessageId
 | sort by Timestamp desc`,
-      },
-      {
-        table: "AlertInfo",
-        action: "Correlate MDO/MDCA/MDI alerts — impossible travel, inbox rule creation, anomalous send volume, and BEC-pattern detections",
-        kql: `AlertInfo
-| where Timestamp > ago(14d)
-| where Title has_any (
-    "AiTM","impossible travel","token theft",
-    "inbox rule","mail forwarding","BEC",
-    "suspicious sign-in","anomalous")
-    or Category in ("InitialAccess","Persistence","Collection","Exfiltration")
-| project Timestamp, AlertId, Title, Severity,
-          Category, AttackTechniques, ServiceSource`,
-      },
-      {
-        table: "AlertEvidence",
-        action: "Extract confirmed IOCs — attacker IP, compromised UPN, inbox rule name — to scope blast radius and support account recovery",
-        kql: `AlertEvidence
-| where Timestamp > ago(14d)
-| where AlertId == "<AlertId from AlertInfo>"
-| where EntityType in ("User","Ip","Mailbox","CloudApplication")
-| project Timestamp, AlertId, EntityType, EvidenceRole,
-          AccountUpn, AccountObjectId, RemoteIP, AdditionalFields`,
-      },
-    ],
+      },],
     links: [
       { from: "EmailEvents",         to: "UrlClickEvents",       col: "NetworkMessageId" },
       { from: "UrlClickEvents",      to: "EntraIdSignInEvents",  col: "AccountUpn" },
@@ -171,6 +177,34 @@ CloudAppEvents
     color: "#b47fff",
     desc: "Trace from email delivery through URL/attachment to process execution on an endpoint.",
     steps: [
+      {
+        table: "AlertInfo",
+        action: "Triage existing detections before walking the kill chain — MDO and MDE fire on phishing delivery, malicious URL, and payload execution. AlertEvidence IOCs seed every subsequent step",
+        kql: `AlertInfo
+| where Timestamp > ago(7d)
+| where Category in ("InitialAccess","Execution","Malware")
+    or Title has_any (
+      "phishing","malware","payload delivery",
+      "suspicious email attachment","document exploit",
+      "macro","suspicious download")
+| project Timestamp, AlertId, Title, Severity,
+          Category, AttackTechniques`,
+      },
+      {
+        table: "AlertEvidence",
+        action: "Extract IOCs from alert evidence — file hashes, recipient accounts, source IPs — to seed email and endpoint table queries",
+        kql: `AlertEvidence
+| where Timestamp > ago(7d)
+| where AlertId == "<AlertId from AlertInfo>"
+    or RemoteIP == "<RemoteIP from DeviceNetworkEvents>"
+    or SHA256 == "<SHA256 from DeviceFileEvents>"
+// EntityType "Email" → NetworkMessageId to pivot back to EmailEvents
+// EntityType "File"  → SHA256 to find all devices where payload landed
+// EntityType "User"  → AccountUpn to confirm victim scope
+| project Timestamp, AlertId, EntityType, EvidenceRole,
+          RemoteIP, SHA256, FileName, AccountUpn,
+          NetworkMessageId, IPAddress`,
+      },
       {
         table: "EmailEvents",
         action: "Find the delivery event — sender, recipient, subject, delivery action",
@@ -272,36 +306,7 @@ CloudAppEvents
 | project Timestamp, DeviceName, RemoteIP, RemoteUrl,
           RemotePort, InitiatingProcessFileName,
           InitiatingProcessId`,
-      },
-      {
-        table: "AlertInfo",
-        action: "Check for phishing, malware delivery, and payload execution alerts generated by MDO and MDE across this chain",
-        kql: `AlertInfo
-| where Timestamp > ago(7d)
-| where Category in ("InitialAccess","Execution","Malware")
-    or Title has_any (
-      "phishing","malware","payload delivery",
-      "suspicious email attachment","document exploit",
-      "macro","suspicious download")
-| project Timestamp, AlertId, Title, Severity,
-          Category, AttackTechniques`,
-      },
-      {
-        table: "AlertEvidence",
-        action: "Extract file hashes, IPs, and recipient accounts from the alert — pivot back to email and file telemetry to verify scope",
-        kql: `AlertEvidence
-| where Timestamp > ago(7d)
-| where AlertId == "<AlertId from AlertInfo>"
-    or RemoteIP == "<RemoteIP from DeviceNetworkEvents>"
-    or SHA256 == "<SHA256 from DeviceFileEvents>"
-// EntityType "Email" → NetworkMessageId to pivot back to EmailEvents
-// EntityType "File"  → SHA256 to find all devices where payload landed
-// EntityType "User"  → AccountUpn to confirm victim scope
-| project Timestamp, AlertId, EntityType, EvidenceRole,
-          RemoteIP, SHA256, FileName, AccountUpn,
-          NetworkMessageId, IPAddress`,
-      },
-    ],
+      },],
     links: [
       { from: "EmailEvents",          to: "CampaignInfo",             col: "CampaignId" },
       { from: "EmailEvents",          to: "EmailUrlInfo",             col: "NetworkMessageId" },
@@ -326,6 +331,33 @@ CloudAppEvents
     color: "#38bdf8",
     desc: "AiTM phishing steals a session token. Attacker signs in to Azure Portal, enumerates VMs, then executes commands via Run Command — all without touching the endpoint.",
     steps: [
+      {
+        table: "AlertInfo",
+        action: "Triage existing detections before walking the kill chain — MDO flags the AiTM lure, MDCA fires on impossible travel and token replay, Defender may fire on VM Run Command activity",
+        kql: `AlertInfo
+| where Timestamp > ago(7d)
+| where Title has_any (
+    "AiTM","adversary-in-the-middle",
+    "impossible travel","token theft",
+    "risky sign-in","suspicious sign-in",
+    "Run Command","unusual VM",
+    "suspicious Azure","suspicious cloud")
+    or Category in ("InitialAccess","Execution","CredentialAccess")
+| project Timestamp, AlertId, Title, Severity,
+          Category, AttackTechniques`,
+      },
+      {
+        table: "AlertEvidence",
+        action: "Extract IOCs from alert evidence — compromised UPN, attacker proxy IP, affected device — to anchor the sign-in chain investigation",
+        kql: `AlertEvidence
+| where Timestamp > ago(7d)
+| where AlertId == "<AlertId from AlertInfo>"
+// EntityType "User" → AccountUpn pivots to EntraIdSignInEvents to find the session
+// EntityType "Ip"   → IPAddress to identify attacker source vs. victim source
+| where EntityType in ("User","Ip","Machine")
+| project Timestamp, AlertId, EntityType, EvidenceRole,
+          AccountUpn, IPAddress, DeviceName, DeviceId`,
+      },
       {
         table: "EmailEvents",
         action: "Find the AiTM phishing email — look for impersonated O365 / MFA prompt lures delivered to the victim",
@@ -355,8 +387,10 @@ CloudAppEvents
       },
       {
         table: "EntraIdSignInEvents",
-        action: "Find the Login:Reprocess event — attacker's proxy IP receives the stolen session token. Capture SessionId — the reliable pivot for all downstream cloud activity, regardless of IP",
+        action: "Find the Login:Reprocess event — attacker's proxy IP receives the stolen session token. Capture SessionId (session-level pivot) for all downstream SaaS steps. Per-token UniqueTokenId (UTI) is NOT a column here — it surfaces as parse_json(AppAccessContext).UniqueTokenId in CloudAppEvents downstream",
         kql: `// Isolate the token issuance: Login:Reprocess = attacker proxy receives the session
+// SessionId = SID claim — session-level linkable identifier; use as AADSessionId downstream
+// UniqueTokenId (UTI) not exposed in EntraIdSignInEvents — extract from AppAccessContext downstream
 EntraIdSignInEvents
 | where Timestamp > ago(7d)
 | where AccountUpn =~ "<AccountUpn from UrlClickEvents>"
@@ -365,7 +399,7 @@ EntraIdSignInEvents
 | project
     TokenIssuedAt   = Timestamp,
     AccountUpn, AccountObjectId,
-    SessionId,                      // The stolen token — pivot via AADSessionId downstream
+    SessionId,                      // SID — matches AADSessionId in AppAccessContext downstream
     AttackerProxyIP = IPAddress,
     Country, Application
 ---
@@ -381,13 +415,15 @@ EntraIdSignInEvents
       },
       {
         table: "CloudAppEvents",
-        action: "Attacker in Azure Portal — filter by stolen SessionId (AADSessionId in AppAccessContext). SaaS sessions route through Microsoft infra so IPAddress here will be Microsoft datacenter ranges, not the attacker's proxy IP — use AADSessionId",
-        kql: `// AADSessionId in AppAccessContext matches SessionId from Login:Reprocess event
-// IPAddress in CloudAppEvents = Microsoft datacenter ranges for stolen-session activity
-// Attacker proxy IP is still valid for blocking / DeviceNetworkEvents / threat intel
+        action: "Attacker in Azure Portal — filter by AADSessionId (session-level) from AppAccessContext. Also extract UniqueTokenId for per-token tracking. SaaS sessions route through Microsoft infra — IP here is Microsoft datacenter ranges, not the attacker's proxy",
+        kql: `// AppAccessContext carries two linkable identifiers:
+// AADSessionId = session-level (SID claim) — matches SessionId from Login:Reprocess
+// UniqueTokenId = per-token (UTI claim) — use to trace individual access tokens
+// IPAddress = Microsoft datacenter ranges — attacker proxy IP is for blocking/network tables only
 CloudAppEvents
 | where Timestamp > ago(7d)
-| extend AADSessionId = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend AADSessionId  = tostring(parse_json(AppAccessContext).AADSessionId)
+| extend UniqueTokenId = tostring(parse_json(AppAccessContext).UniqueTokenId)
 | where AADSessionId == "<SessionId from EntraIdSignInEvents>"
 | where Application == "Microsoft Azure"
 | where ActionType in (
@@ -398,7 +434,7 @@ CloudAppEvents
     "ListResourceGroups",
     "UserLoggedIn")
 | project Timestamp, AccountUpn, ActionType, Application,
-          IPAddress, ObjectName, ObjectId, AADSessionId
+          IPAddress, ObjectName, ObjectId, AADSessionId, UniqueTokenId
 | order by Timestamp asc`,
       },
       {
@@ -451,35 +487,7 @@ CloudAppEvents
           ProcessCommandLine, InitiatingProcessFileName,
           InitiatingProcessId, AccountName
 | order by Timestamp asc`,
-      },
-      {
-        table: "AlertInfo",
-        action: "Correlate with AiTM, impossible travel, risky sign-in, and any cloud execution alerts generated across the chain",
-        kql: `AlertInfo
-| where Timestamp > ago(7d)
-| where Title has_any (
-    "AiTM","adversary-in-the-middle",
-    "impossible travel","token theft",
-    "risky sign-in","suspicious sign-in",
-    "Run Command","unusual VM",
-    "suspicious Azure","suspicious cloud")
-    or Category in ("InitialAccess","Execution","CredentialAccess")
-| project Timestamp, AlertId, Title, Severity,
-          Category, AttackTechniques`,
-      },
-      {
-        table: "AlertEvidence",
-        action: "Extract the specific entities from the alert — user account, source IP, affected device — to pivot back into the sign-in chain",
-        kql: `AlertEvidence
-| where Timestamp > ago(7d)
-| where AlertId == "<AlertId from AlertInfo>"
-// EntityType "User" → AccountUpn pivots to EntraIdSignInEvents to find the session
-// EntityType "Ip"   → IPAddress to identify attacker source vs. victim source
-| where EntityType in ("User","Ip","Machine")
-| project Timestamp, AlertId, EntityType, EvidenceRole,
-          AccountUpn, IPAddress, DeviceName, DeviceId`,
-      },
-    ],
+      },],
     links: [
       { from: "EmailEvents",       to: "UrlClickEvents",       col: "NetworkMessageId" },
       { from: "UrlClickEvents",    to: "EntraIdSignInEvents",  col: "AccountUpn" },
@@ -499,6 +507,29 @@ CloudAppEvents
     color: "#ff6b35",
     desc: "Trace credential use, pass-the-hash/ticket, and remote execution across hosts.",
     steps: [
+      {
+        table: "AlertInfo",
+        action: "Triage existing detections before walking the kill chain — check for PTH/PTT, suspicious logon, or admin share alerts already fired by MDE and MDI",
+        kql: `AlertInfo
+| where Timestamp > ago(7d)
+| where Category in ("LateralMovement","CredentialAccess")
+    or Title has_any ("pass-the-hash","pass-the-ticket",
+                      "admin share","suspicious logon")
+| project Timestamp, AlertId, Title, Severity,
+          Category, AttackTechniques`,
+      },
+      {
+        table: "AlertEvidence",
+        action: "Extract the compromised account and target device from alert evidence to anchor logon and process telemetry queries",
+        kql: `AlertEvidence
+| where Timestamp > ago(7d)
+| where AlertId == "<AlertId from AlertInfo>"
+// EntityType "Machine" → DeviceId/DeviceName confirms which host was targeted
+// EntityType "User"    → AccountUpn pivots back to DeviceLogonEvents for the full session
+| where EntityType in ("Machine","User")
+| project Timestamp, AlertId, EntityType, EvidenceRole,
+          AccountUpn, DeviceName, DeviceId, IPAddress`,
+      },
       {
         table: "DeviceLogonEvents",
         action: "Find remote interactive or network logons (LogonType 3, 10)",
@@ -593,31 +624,7 @@ CloudAppEvents
 | project Timestamp, DeviceName, ActionType, RegistryKey,
           RegistryValueName, RegistryValueData,
           InitiatingProcessFileName`,
-      },
-      {
-        table: "AlertInfo",
-        action: "Look for PTH/PTT, suspicious logon, or admin share alerts",
-        kql: `AlertInfo
-| where Timestamp > ago(7d)
-| where Category in ("LateralMovement","CredentialAccess")
-    or Title has_any ("pass-the-hash","pass-the-ticket",
-                      "admin share","suspicious logon")
-| project Timestamp, AlertId, Title, Severity,
-          Category, AttackTechniques`,
-      },
-      {
-        table: "AlertEvidence",
-        action: "Extract the compromised account and target device from the alert — pivot back into logon telemetry to verify the movement path",
-        kql: `AlertEvidence
-| where Timestamp > ago(7d)
-| where AlertId == "<AlertId from AlertInfo>"
-// EntityType "Machine" → DeviceId/DeviceName confirms which host was targeted
-// EntityType "User"    → AccountUpn pivots back to DeviceLogonEvents for the full session
-| where EntityType in ("Machine","User")
-| project Timestamp, AlertId, EntityType, EvidenceRole,
-          AccountUpn, DeviceName, DeviceId, IPAddress`,
-      },
-    ],
+      },],
     links: [
       { from: "DeviceLogonEvents",       to: "IdentityLogonEvents",     col: "AccountUpn + RemoteIP → IPAddress" },
       { from: "IdentityLogonEvents",     to: "IdentityDirectoryEvents", col: "AccountUpn" },
@@ -639,6 +646,33 @@ CloudAppEvents
     color: "#ff4757",
     desc: "Hunt scheduled tasks, registry run keys, services, and startup folder modifications.",
     steps: [
+      {
+        table: "AlertInfo",
+        action: "Triage existing detections before walking the kill chain — look for persistence-class alerts: scheduled tasks, registry autoruns, service installs, DLL hijacking",
+        kql: `AlertInfo
+| where Timestamp > ago(7d)
+| where Category in ("Persistence","DefenseEvasion")
+    or Title has_any (
+      "scheduled task","registry persistence",
+      "startup folder","service install",
+      "DLL side-loading","hijack","autorun",
+      "image file execution")
+| project Timestamp, AlertId, Title, Severity,
+          Category, AttackTechniques`,
+      },
+      {
+        table: "AlertEvidence",
+        action: "Extract the payload file and host from alert evidence — SHA256 and DeviceName — to pivot to where the persistence mechanism appeared on disk",
+        kql: `AlertEvidence
+| where Timestamp > ago(7d)
+| where AlertId == "<AlertId from AlertInfo>"
+// EntityType "File" gives SHA256/FileName to pivot to DeviceFileEvents
+// EntityType "Machine" confirms the persisted host
+| where EntityType in ("File","Machine","Process")
+| project Timestamp, AlertId, EntityType, EvidenceRole,
+          FileName, SHA256, DeviceName, DeviceId,
+          ProcessCommandLine`,
+      },
       {
         table: "DeviceRegistryEvents",
         action: "Query Run/RunOnce keys, service entries, WMI subscriptions",
@@ -734,35 +768,7 @@ CloudAppEvents
     or TargetAccountUpn =~ "<AccountUpn from DeviceLogonEvents>"
 | project Timestamp, AccountUpn, ActionType,
           TargetAccountUpn, TargetAccountDisplayName, AdditionalFields`,
-      },
-      {
-        table: "AlertInfo",
-        action: "Look for persistence-class alerts: scheduled tasks, registry autoruns, service installs, DLL hijacking",
-        kql: `AlertInfo
-| where Timestamp > ago(7d)
-| where Category in ("Persistence","DefenseEvasion")
-    or Title has_any (
-      "scheduled task","registry persistence",
-      "startup folder","service install",
-      "DLL side-loading","hijack","autorun",
-      "image file execution")
-| project Timestamp, AlertId, Title, Severity,
-          Category, AttackTechniques`,
-      },
-      {
-        table: "AlertEvidence",
-        action: "Extract the payload file from the alert and pivot back to where it appeared on disk",
-        kql: `AlertEvidence
-| where Timestamp > ago(7d)
-| where AlertId == "<AlertId from AlertInfo>"
-// EntityType "File" gives SHA256/FileName to pivot to DeviceFileEvents
-// EntityType "Machine" confirms the persisted host
-| where EntityType in ("File","Machine","Process")
-| project Timestamp, AlertId, EntityType, EvidenceRole,
-          FileName, SHA256, DeviceName, DeviceId,
-          ProcessCommandLine`,
-      },
-    ],
+      },],
     links: [
       { from: "DeviceRegistryEvents",    to: "DeviceProcessEvents",       col: "InitiatingProcessId" },
       { from: "DeviceProcessEvents",     to: "DeviceFileEvents",          col: "InitiatingProcessId" },
@@ -784,6 +790,31 @@ CloudAppEvents
     color: "#ffb347",
     desc: "Identify credential dumping, LSASS access, spray attacks, and Kerberoasting.",
     steps: [
+      {
+        table: "AlertInfo",
+        action: "Triage existing detections before walking the kill chain — check for credential-class alerts: NTLM relay, Kerberoast, and password spray",
+        kql: `AlertInfo
+| where Timestamp > ago(7d)
+| where Category == "CredentialAccess"
+    or Title has_any (
+      "Kerberoast","NTLM relay","credential dump",
+      "password spray","LSASS","Mimikatz")
+| project Timestamp, AlertId, Title, Severity,
+          Category, AttackTechniques`,
+      },
+      {
+        table: "AlertEvidence",
+        action: "Extract the compromised account and credential-dumping process from alert evidence — pivot to logon events to track credential reuse",
+        kql: `AlertEvidence
+| where Timestamp > ago(7d)
+| where AlertId == "<AlertId from AlertInfo>"
+// EntityType "User"    → AccountUpn to pivot to IdentityLogonEvents for reuse tracking
+// EntityType "Process" → FileName/SHA256 of the dumping tool (mimikatz, procdump)
+| where EntityType in ("User","Process","Machine")
+| project Timestamp, AlertId, EntityType, EvidenceRole,
+          AccountUpn, DeviceName, DeviceId,
+          FileName, ProcessCommandLine, SHA256`,
+      },
       {
         table: "DeviceEvents",
         action: "Look for LSASS access events (ActionType: OpenProcessApiCall on lsass.exe)",
@@ -895,33 +926,7 @@ CloudAppEvents
           AccountUpn, AccountDomain, LogonType, LogonId, RemoteIP
 // DeviceId → pivot to DeviceProcessEvents to find if dumping tools ran after this logon
 // DeviceId → pivot to DeviceEvents to find LSASS access attempts on this host`,
-      },
-      {
-        table: "AlertInfo",
-        action: "Check for credential-class alerts: NTLM relay, Kerberoast, spray",
-        kql: `AlertInfo
-| where Timestamp > ago(7d)
-| where Category == "CredentialAccess"
-    or Title has_any (
-      "Kerberoast","NTLM relay","credential dump",
-      "password spray","LSASS","Mimikatz")
-| project Timestamp, AlertId, Title, Severity,
-          Category, AttackTechniques`,
-      },
-      {
-        table: "AlertEvidence",
-        action: "Extract the compromised account and credential-dumping process from the alert — pivot to logon events to track credential reuse",
-        kql: `AlertEvidence
-| where Timestamp > ago(7d)
-| where AlertId == "<AlertId from AlertInfo>"
-// EntityType "User"    → AccountUpn to pivot to IdentityLogonEvents for reuse tracking
-// EntityType "Process" → FileName/SHA256 of the dumping tool (mimikatz, procdump)
-| where EntityType in ("User","Process","Machine")
-| project Timestamp, AlertId, EntityType, EvidenceRole,
-          AccountUpn, DeviceName, DeviceId,
-          FileName, ProcessCommandLine, SHA256`,
-      },
-    ],
+      },],
     links: [
       { from: "DeviceEvents",        to: "DeviceProcessEvents",     col: "InitiatingProcessId" },
       { from: "DeviceProcessEvents", to: "DeviceFileEvents",        col: "InitiatingProcessId" },
@@ -943,6 +948,31 @@ CloudAppEvents
     color: "#47ff8f",
     desc: "Trace token theft, OAuth abuse, and cloud-native data access post-compromise.",
     steps: [
+      {
+        table: "AlertInfo",
+        action: "Triage existing detections before walking the kill chain — check for impossible travel, risky sign-in, BEC, or OAuth abuse alerts",
+        kql: `AlertInfo
+| where Timestamp > ago(7d)
+| where Category in ("InitialAccess","Collection")
+    or Title has_any (
+      "impossible travel","risky sign-in","BEC",
+      "forwarding rule","OAuth app","token theft")
+| project Timestamp, AlertId, Title, Severity,
+          Category, AttackTechniques`,
+      },
+      {
+        table: "AlertEvidence",
+        action: "Extract the compromised user from alert evidence — account UPN, source IP, cloud application — to anchor the sign-in chain investigation",
+        kql: `AlertEvidence
+| where Timestamp > ago(7d)
+| where AlertId == "<AlertId from AlertInfo>"
+// EntityType "User"             → AccountUpn to pivot to EntraIdSignInEvents
+// EntityType "Ip"               → IPAddress of the attacker's sign-in source
+// EntityType "CloudApplication" → shows which app the attacker abused
+| where EntityType in ("User","Ip","CloudApplication")
+| project Timestamp, AlertId, EntityType, EvidenceRole,
+          AccountUpn, IPAddress, AdditionalFields`,
+      },
       {
         table: "EntraIdSignInEvents",
         action: "Identify sign-in from impossible travel, new ASN, or legacy protocol",
@@ -1038,33 +1068,7 @@ CloudAppEvents
 | where SensitivityLabel != "" or PolicyName != ""
 | project Timestamp, AccountUpn, ActionType, FileName,
           SensitivityLabel, PolicyName, ActivityType`,
-      },
-      {
-        table: "AlertInfo",
-        action: "Check for impossible travel, risky sign-in, or BEC alerts",
-        kql: `AlertInfo
-| where Timestamp > ago(7d)
-| where Category in ("InitialAccess","Collection")
-    or Title has_any (
-      "impossible travel","risky sign-in","BEC",
-      "forwarding rule","OAuth app","token theft")
-| project Timestamp, AlertId, Title, Severity,
-          Category, AttackTechniques`,
-      },
-      {
-        table: "AlertEvidence",
-        action: "Extract the compromised user from the alert and pivot back to the sign-in chain to find the initial access point",
-        kql: `AlertEvidence
-| where Timestamp > ago(7d)
-| where AlertId == "<AlertId from AlertInfo>"
-// EntityType "User"             → AccountUpn to pivot to EntraIdSignInEvents
-// EntityType "Ip"               → IPAddress of the attacker's sign-in source
-// EntityType "CloudApplication" → shows which app the attacker abused
-| where EntityType in ("User","Ip","CloudApplication")
-| project Timestamp, AlertId, EntityType, EvidenceRole,
-          AccountUpn, IPAddress, AdditionalFields`,
-      },
-    ],
+      },],
     links: [
       { from: "EntraIdSignInEvents",     to: "CloudAppEvents",         col: "AccountObjectId" },
       { from: "CloudAppEvents",          to: "GraphApiAuditEvents",    col: "AccountId" },
@@ -1085,6 +1089,32 @@ CloudAppEvents
     color: "#ff47a3",
     desc: "Hunt large data movements: cloud downloads, email forwarding, DNS/HTTP tunneling, USB.",
     steps: [
+      {
+        table: "AlertInfo",
+        action: "Triage existing detections before walking the kill chain — check for data exfil, anomalous upload volume, or DLP policy match alerts",
+        kql: `AlertInfo
+| where Timestamp > ago(7d)
+| where Category == "Exfiltration"
+    or Title has_any (
+      "exfiltration","anomalous upload",
+      "data transfer","DLP","large download")
+| project Timestamp, AlertId, Title, Severity,
+          Category, AttackTechniques`,
+      },
+      {
+        table: "AlertEvidence",
+        action: "Extract the exfiltrating account and destination IP from alert evidence — pivot to CloudAppEvents to quantify scope of data taken",
+        kql: `AlertEvidence
+| where Timestamp > ago(7d)
+| where AlertId == "<AlertId from AlertInfo>"
+// EntityType "User" → AccountUpn to pivot to CloudAppEvents for download volume
+// EntityType "Ip"   → RemoteIP destination of the exfil
+// EntityType "File" → FileName/SHA256 of the specific file exfiltrated
+| where EntityType in ("User","Ip","File","Machine")
+| project Timestamp, AlertId, EntityType, EvidenceRole,
+          AccountUpn, DeviceName, DeviceId,
+          FileName, SHA256, RemoteIP`,
+      },
       {
         table: "CloudAppEvents",
         action: "Detect mass file downloads or sync of sensitive SharePoint libraries",
@@ -1162,34 +1192,7 @@ CloudAppEvents
 | where PolicyName != ""
 | project Timestamp, AccountUpn, ActionType, FileName,
           SensitivityLabel, PolicyName, ActivityType`,
-      },
-      {
-        table: "AlertInfo",
-        action: "Look for data exfil or anomalous upload volume alerts",
-        kql: `AlertInfo
-| where Timestamp > ago(7d)
-| where Category == "Exfiltration"
-    or Title has_any (
-      "exfiltration","anomalous upload",
-      "data transfer","DLP","large download")
-| project Timestamp, AlertId, Title, Severity,
-          Category, AttackTechniques`,
-      },
-      {
-        table: "AlertEvidence",
-        action: "Extract the exfiltrating account and destination IP from the alert — pivot to CloudAppEvents to quantify what was taken",
-        kql: `AlertEvidence
-| where Timestamp > ago(7d)
-| where AlertId == "<AlertId from AlertInfo>"
-// EntityType "User" → AccountUpn to pivot to CloudAppEvents for download volume
-// EntityType "Ip"   → RemoteIP destination of the exfil
-// EntityType "File" → FileName/SHA256 of the specific file exfiltrated
-| where EntityType in ("User","Ip","File","Machine")
-| project Timestamp, AlertId, EntityType, EvidenceRole,
-          AccountUpn, DeviceName, DeviceId,
-          FileName, SHA256, RemoteIP`,
-      },
-    ],
+      },],
     links: [
       { from: "CloudAppEvents",      to: "DeviceNetworkEvents", col: "AccountUpn → InitiatingProcessAccountUpn" },
       { from: "DeviceNetworkEvents", to: "DeviceProcessEvents", col: "InitiatingProcessId" },
@@ -1208,6 +1211,32 @@ CloudAppEvents
     color: "#ff6b35",
     desc: "Correlate CVE exposure with behavioral signals of exploitation on the endpoint.",
     steps: [
+      {
+        table: "AlertInfo",
+        action: "Triage existing detections before walking the kill chain — look for exploit-class or suspicious child process alerts on affected devices",
+        kql: `AlertInfo
+| where Timestamp > ago(7d)
+| where Category in ("InitialAccess","Execution")
+    or Title has_any (
+      "exploit","shellcode","CVE",
+      "buffer overflow","suspicious child process")
+| project Timestamp, AlertId, Title, Severity,
+          Category, AttackTechniques`,
+      },
+      {
+        table: "AlertEvidence",
+        action: "Extract the exploited device from alert evidence — confirm it was in your exposed TVM fleet before pivoting to behavioral process events",
+        kql: `AlertEvidence
+| where Timestamp > ago(7d)
+| where AlertId == "<AlertId from AlertInfo>"
+// EntityType "Machine" → DeviceId confirms which exposed device was actually hit
+// EntityType "Process" → FileName of the shellcode/spawned child process
+// EntityType "File"    → SHA256 of the dropped payload for threat intel lookup
+| where EntityType in ("Machine","Process","File")
+| project Timestamp, AlertId, EntityType, EvidenceRole,
+          DeviceName, DeviceId, FileName, SHA256,
+          ProcessCommandLine`,
+      },
       {
         table: "DeviceTvmSoftwareVulnerabilities",
         action: "Identify devices with the relevant CVE and vuln severity",
@@ -1304,34 +1333,7 @@ CloudAppEvents
 | project Timestamp, DeviceName, ActionType,
           InitiatingProcessFileName, InitiatingProcessId,
           AdditionalFields`,
-      },
-      {
-        table: "AlertInfo",
-        action: "Correlate with exploit-class or shell-class alerts on affected devices",
-        kql: `AlertInfo
-| where Timestamp > ago(7d)
-| where Category in ("InitialAccess","Execution")
-    or Title has_any (
-      "exploit","shellcode","CVE",
-      "buffer overflow","suspicious child process")
-| project Timestamp, AlertId, Title, Severity,
-          Category, AttackTechniques`,
-      },
-      {
-        table: "AlertEvidence",
-        action: "Extract the exploited device from the alert — pivot back to DeviceInfo to confirm it was in your exposed fleet",
-        kql: `AlertEvidence
-| where Timestamp > ago(7d)
-| where AlertId == "<AlertId from AlertInfo>"
-// EntityType "Machine" → DeviceId confirms which exposed device was actually hit
-// EntityType "Process" → FileName of the shellcode/spawned child process
-// EntityType "File"    → SHA256 of the dropped payload for threat intel lookup
-| where EntityType in ("Machine","Process","File")
-| project Timestamp, AlertId, EntityType, EvidenceRole,
-          DeviceName, DeviceId, FileName, SHA256,
-          ProcessCommandLine`,
-      },
-    ],
+      },],
     links: [
       { from: "DeviceTvmSoftwareVulnerabilities",       to: "DeviceTvmSoftwareInventory",            col: "DeviceId + SoftwareName" },
       { from: "DeviceTvmSoftwareInventory",             to: "DeviceInfo",                            col: "DeviceId" },
@@ -1352,6 +1354,30 @@ CloudAppEvents
     color: "#ff47a3",
     desc: "Investigate suspicious data access, policy violations, and anomalous user behavior.",
     steps: [
+      {
+        table: "AlertInfo",
+        action: "Triage existing detections before walking the investigation — check Insider Risk Management and UEBA-based alerts before pivoting to raw telemetry",
+        kql: `AlertInfo
+| where Timestamp > ago(30d)
+| where Category in ("Collection","Exfiltration")
+    or Title has_any (
+      "insider","anomalous activity","unusual",
+      "sensitive data","DLP","mass download")
+| project Timestamp, AlertId, Title, Severity,
+          Category, AttackTechniques`,
+      },
+      {
+        table: "AlertEvidence",
+        action: "Extract the user and sensitive files flagged in alert evidence — pivot to CloudAppEvents to scope the full access and download history",
+        kql: `AlertEvidence
+| where Timestamp > ago(30d)
+| where AlertId == "<AlertId from AlertInfo>"
+// EntityType "User" → AccountUpn to pivot to CloudAppEvents for download history
+// EntityType "File" → FileName/SHA256 of the specific sensitive data touched
+| where EntityType in ("User","File","Machine")
+| project Timestamp, AlertId, EntityType, EvidenceRole,
+          AccountUpn, DeviceName, FileName, SHA256`,
+      },
       {
         table: "DataSecurityEvents",
         action: "Start with Purview policy violations — sensitive data access or DLP matches",
@@ -1431,32 +1457,7 @@ CloudAppEvents
     "outlook.com","protonmail.com")
 | project Timestamp, SenderFromAddress, RecipientEmailAddress,
           Subject, AttachmentCount, NetworkMessageId`,
-      },
-      {
-        table: "AlertInfo",
-        action: "Check Insider Risk Management and UEBA-based alerts",
-        kql: `AlertInfo
-| where Timestamp > ago(30d)
-| where Category in ("Collection","Exfiltration")
-    or Title has_any (
-      "insider","anomalous activity","unusual",
-      "sensitive data","DLP","mass download")
-| project Timestamp, AlertId, Title, Severity,
-          Category, AttackTechniques`,
-      },
-      {
-        table: "AlertEvidence",
-        action: "Extract the user and sensitive files flagged in the alert — pivot back to CloudAppEvents to find the full scope of what they accessed",
-        kql: `AlertEvidence
-| where Timestamp > ago(30d)
-| where AlertId == "<AlertId from AlertInfo>"
-// EntityType "User" → AccountUpn to pivot to CloudAppEvents for download history
-// EntityType "File" → FileName/SHA256 of the specific sensitive data touched
-| where EntityType in ("User","File","Machine")
-| project Timestamp, AlertId, EntityType, EvidenceRole,
-          AccountUpn, DeviceName, FileName, SHA256`,
-      },
-    ],
+      },],
     links: [
       { from: "DataSecurityEvents",  to: "CloudAppEvents",     col: "AccountUpn" },
       { from: "CloudAppEvents",      to: "IdentityLogonEvents",col: "AccountUpn" },
@@ -1476,6 +1477,29 @@ CloudAppEvents
     color: "#a78bfa",
     desc: "Malvertising or fake software drops Lumma/Redline/StealC. The stealer harvests browser credentials, session cookies, and crypto wallets then exfils via Telegram Bot API or Discord webhook.",
     steps: [
+      {
+        table: "AlertInfo",
+        action: "Triage existing detections before walking the kill chain — MDE fires on browser credential theft, suspicious DPAPI access, Telegram/Discord C2, and known stealer families",
+        kql: `AlertInfo
+| where Timestamp > ago(7d)
+| where Category in ("Malware","SuspiciousActivity","CredentialAccess")
+    or Title has_any (
+        "stealer","credential","browser data","DPAPI",
+        "Lumma","Redline","StealC","Vidar",
+        "Telegram","Discord C2","infostealer")
+| project Timestamp, AlertId, Title, Severity,
+          Category, AttackTechniques, ServiceSource`,
+      },
+      {
+        table: "AlertEvidence",
+        action: "Extract the stealer binary hash from alert evidence — SHA256 scopes all devices where this payload landed across the environment",
+        kql: `AlertEvidence
+| where Timestamp > ago(7d)
+| where AlertId == "<AlertId from AlertInfo>"
+| where EntityType in ("File","Process","Ip","Machine")
+| project Timestamp, AlertId, EntityType, EvidenceRole,
+          FileName, SHA256, RemoteIP, DeviceName, ProcessCommandLine`,
+      },
       {
         table: "DeviceProcessEvents",
         action: "Find the dropper or initial execution — fake installer from Temp/Downloads, browser-spawned LOLBin, or renamed executable with suspicious parent",
@@ -1556,31 +1580,7 @@ CloudAppEvents
 | project Timestamp, DeviceName, RemoteIP, RemoteUrl,
           RemotePort, InitiatingProcessFileName,
           InitiatingProcessId`,
-      },
-      {
-        table: "AlertInfo",
-        action: "Check MDE alerts on browser credential theft, suspicious DPAPI access, Telegram/Discord C2, and known stealer family detections",
-        kql: `AlertInfo
-| where Timestamp > ago(7d)
-| where Category in ("Malware","SuspiciousActivity","CredentialAccess")
-    or Title has_any (
-        "stealer","credential","browser data","DPAPI",
-        "Lumma","Redline","StealC","Vidar",
-        "Telegram","Discord C2","infostealer")
-| project Timestamp, AlertId, Title, Severity,
-          Category, AttackTechniques, ServiceSource`,
-      },
-      {
-        table: "AlertEvidence",
-        action: "Extract the stealer binary hash — SHA256 lets you scope all devices where this payload landed across the entire environment",
-        kql: `AlertEvidence
-| where Timestamp > ago(7d)
-| where AlertId == "<AlertId from AlertInfo>"
-| where EntityType in ("File","Process","Ip","Machine")
-| project Timestamp, AlertId, EntityType, EvidenceRole,
-          FileName, SHA256, RemoteIP, DeviceName, ProcessCommandLine`,
-      },
-    ],
+      },],
     links: [
       { from: "DeviceProcessEvents",  to: "DeviceFileEvents",      col: "InitiatingProcessId" },
       { from: "DeviceFileEvents",     to: "DeviceEvents",          col: "DeviceId + InitiatingProcessId" },
@@ -1599,6 +1599,30 @@ CloudAppEvents
     color: "#22d3ee",
     desc: "Fake CAPTCHA or browser-error dialog silently writes an encoded PowerShell cradle to the clipboard, then instructs the user to paste it into the Windows Run dialog — no attachment, no macro.",
     steps: [
+      {
+        table: "AlertInfo",
+        action: "Triage existing detections before walking the kill chain — MDE fires on explorer-parented PowerShell, encoded commands, and LOLBin abuse characteristic of ClickFix delivery",
+        kql: `AlertInfo
+| where Timestamp > ago(7d)
+| where Category in ("Execution","InitialAccess","Persistence")
+    or Title has_any (
+        "ClickFix","encoded command","suspicious PowerShell",
+        "mshta","certutil download","LOLBin",
+        "clipboard","download cradle","suspicious process")
+| project Timestamp, AlertId, Title, Severity,
+          Category, AttackTechniques, ServiceSource`,
+      },
+      {
+        table: "AlertEvidence",
+        action: "Extract the payload hash and LOLBin process from alert evidence — SHA256 scopes all devices hit by the same ClickFix campaign",
+        kql: `AlertEvidence
+| where Timestamp > ago(7d)
+| where AlertId == "<AlertId from AlertInfo>"
+| where EntityType in ("Process","File","Machine","Ip")
+| project Timestamp, AlertId, EntityType, EvidenceRole,
+          FileName, SHA256, ProcessCommandLine,
+          DeviceName, RemoteIP`,
+      },
       {
         table: "EmailEvents",
         action: "Find the phishing email linking to a ClickFix page — fake CAPTCHAs, document viewer errors, or browser update prompts",
@@ -1683,32 +1707,7 @@ CloudAppEvents
 | project Timestamp, DeviceName, RegistryKey,
           RegistryValueName, RegistryValueData,
           InitiatingProcessFileName`,
-      },
-      {
-        table: "AlertInfo",
-        action: "Correlate MDE alerts on explorer-parented PowerShell, encoded commands, LOLBin abuse, and ClickFix-specific detections",
-        kql: `AlertInfo
-| where Timestamp > ago(7d)
-| where Category in ("Execution","InitialAccess","Persistence")
-    or Title has_any (
-        "ClickFix","encoded command","suspicious PowerShell",
-        "mshta","certutil download","LOLBin",
-        "clipboard","download cradle","suspicious process")
-| project Timestamp, AlertId, Title, Severity,
-          Category, AttackTechniques, ServiceSource`,
-      },
-      {
-        table: "AlertEvidence",
-        action: "Extract the payload hash and the LOLBin process — SHA256 scopes all devices hit by the same campaign payload",
-        kql: `AlertEvidence
-| where Timestamp > ago(7d)
-| where AlertId == "<AlertId from AlertInfo>"
-| where EntityType in ("Process","File","Machine","Ip")
-| project Timestamp, AlertId, EntityType, EvidenceRole,
-          FileName, SHA256, ProcessCommandLine,
-          DeviceName, RemoteIP`,
-      },
-    ],
+      },],
     links: [
       { from: "EmailEvents",          to: "DeviceNetworkEvents",  col: "RecipientEmailAddress → device browsing" },
       { from: "DeviceNetworkEvents",  to: "DeviceEvents",         col: "DeviceId + InitiatingProcessId" },

@@ -83,6 +83,15 @@ const { title = "XDR Pivot Map" } = Astro.props;
       ::-webkit-scrollbar { width: 6px; }
       ::-webkit-scrollbar-track { background: var(--bg-1); }
       ::-webkit-scrollbar-thumb { background: var(--bd-1); border-radius: 3px; }
+
+      /* ── Linkable-identifier ring animations ── */
+      @keyframes li-cw    { to { stroke-dashoffset: -182; } }
+      @keyframes li-ccw   { to { stroke-dashoffset:  226; } }
+      @keyframes li-pulse { 0%,100% { opacity:.45 } 50% { opacity:.9 } }
+      @keyframes li-flow  { to { stroke-dashoffset: -18; } }
+      .li-ring-inner { animation: li-cw 3.5s linear infinite, li-pulse 2s ease-in-out infinite; }
+      .li-ring-outer { animation: li-ccw 5s linear infinite; opacity: .65; }
+      .li-edge-overlay { animation: li-flow 1.2s linear infinite; }
     </style>
   </head>
   <body>
