@@ -53,6 +53,33 @@ import BaseLayout from "../layouts/BaseLayout.astro";
           </div>
         </div>
       </a>
+      <a href="/xdr-pivot-map/tools/tables-for-muggles" style="
+        display:flex;align-items:center;gap:1.5rem;
+        padding:1.25rem 1.5rem;
+        background:var(--bg-card);
+        border:1px solid var(--bd-1);
+        border-left:4px solid #a78bfa;
+        box-shadow:0 4px 24px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.06);
+        color:inherit;text-decoration:none;
+        transition:filter 0.15s,border-left-color 0.15s,box-shadow 0.15s;
+      "
+      onmouseover="this.style.filter='brightness(1.15)';this.style.borderLeftColor='#ffb347';this.style.boxShadow='0 6px 32px rgba(167,139,250,0.18),inset 0 1px 0 rgba(255,255,255,0.08)'"
+      onmouseout="this.style.filter='';this.style.borderLeftColor='#a78bfa';this.style.boxShadow='0 4px 24px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.06)'"
+      >
+        <div style="font-size:1.5rem;flex-shrink:0;">📚</div>
+        <div>
+          <div style="font-size:0.8rem;font-weight:700;color:var(--tx-1);margin-bottom:0.3rem;letter-spacing:0.04em;">
+            Tables for Muggles
+          </div>
+          <div style="font-size:0.7rem;color:var(--tx-3);line-height:1.6;">
+            Plain-English guide to every Defender XDR table — where the data comes from,
+            what it means, and the columns that matter most for IR and threat hunting.
+          </div>
+          <div style="margin-top:0.6rem;font-size:0.65rem;color:var(--tx-5);letter-spacing:0.1em;text-transform:uppercase;">
+            47 tables &nbsp;·&nbsp; topic filters &nbsp;·&nbsp; key columns
+          </div>
+        </div>
+      </a>
       <a href="/xdr-pivot-map/tools/investigation-roadmap" style="
         display:flex;align-items:center;gap:1.5rem;
         padding:1.25rem 1.5rem;
@@ -77,33 +104,6 @@ import BaseLayout from "../layouts/BaseLayout.astro";
           </div>
           <div style="margin-top:0.6rem;font-size:0.65rem;color:var(--tx-5);letter-spacing:0.1em;text-transform:uppercase;">
             5 pivots · 5 scenarios &nbsp;·&nbsp; 70+ stops &nbsp;·&nbsp; KQL ready
-          </div>
-        </div>
-      </a>
-      <a href="/xdr-pivot-map/tools/tables-for-muggles" style="
-        display:flex;align-items:center;gap:1.5rem;
-        padding:1.25rem 1.5rem;
-        background:var(--bg-card);
-        border:1px solid var(--bd-1);
-        border-left:4px solid #a78bfa;
-        box-shadow:0 4px 24px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.06);
-        color:inherit;text-decoration:none;
-        transition:filter 0.15s,border-left-color 0.15s,box-shadow 0.15s;
-      "
-      onmouseover="this.style.filter='brightness(1.15)';this.style.borderLeftColor='#ffb347';this.style.boxShadow='0 6px 32px rgba(167,139,250,0.18),inset 0 1px 0 rgba(255,255,255,0.08)'"
-      onmouseout="this.style.filter='';this.style.borderLeftColor='#a78bfa';this.style.boxShadow='0 4px 24px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.06)'"
-      >
-        <div style="font-size:1.5rem;flex-shrink:0;">📚</div>
-        <div>
-          <div style="font-size:0.8rem;font-weight:700;color:var(--tx-1);margin-bottom:0.3rem;letter-spacing:0.04em;">
-            Tables for Muggles
-          </div>
-          <div style="font-size:0.7rem;color:var(--tx-3);line-height:1.6;">
-            Plain-English guide to every Defender XDR table — where the data comes from,
-            what it means, and the columns that matter most for IR and threat hunting.
-          </div>
-          <div style="margin-top:0.6rem;font-size:0.65rem;color:var(--tx-5);letter-spacing:0.1em;text-transform:uppercase;">
-            34 tables &nbsp;·&nbsp; 7 topic filters &nbsp;·&nbsp; key columns
           </div>
         </div>
       </a>

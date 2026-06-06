@@ -25,7 +25,7 @@ export default function XDRPivotMap() {
     : null;
   const domainTableIds = selectedDomain
     ? new Set([
-        ...TABLES.filter(t => t.domain === selectedDomain).map(t => t.id),
+        ...TABLES.filter(t => t.domain === selectedDomain || t.extraDomains?.includes(selectedDomain)).map(t => t.id),
         "AlertInfo",
         "AlertEvidence",
       ])
@@ -160,14 +160,14 @@ export default function XDRPivotMap() {
           <div style={{
             position: "absolute", top: 16, right: 16,
             background: "var(--bg-float)", border: "1px solid var(--bd-1)", borderRadius: 4,
-            padding: "14px 18px", maxWidth: 260, fontSize: 12, color: "var(--tx-4)", lineHeight: 1.7,
+            padding: "14px 18px", maxWidth: 300, fontSize: 12, color: "var(--tx-4)", lineHeight: 1.7,
           }}>
             <div style={{ color: "#ffb34788", marginBottom: 8, fontSize: 11, letterSpacing: "0.15em", textTransform: "uppercase" }}>
               How to use
             </div>
-            Select a hunt scenario from the left.<br/><br/>
-            The graph highlights the relevant table chain.<br/>
-            Click numbered steps to spotlight individual tables.
+            The XDR Map is the main focus of this tool. Use the map to see where an analyst may pivot with an IOC from one table to the next.<br/><br/>
+            <strong style={{ color: "var(--tx-3)" }}>Categories</strong> will highlight tables relevant to the category.<br/><br/>
+            <strong style={{ color: "var(--tx-3)" }}>Hunt Scenarios</strong> are rough sketches of how to pivot through the data. They should not be expected to be 100% accurate for every environment.
           </div>
         )}
 

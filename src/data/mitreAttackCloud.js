@@ -129,14 +129,15 @@ EntraIdSignInEvents
       },
       {
         table: "CloudAuditEvents",
-        columns: ["AccountObjectId", "OperationName", "ResourceId", "IPAddress", "AdditionalFields"],
+        columns: ["OperationName", "ResourceId", "IPAddress", "RawEventData", "AdditionalFields"],
         kql: `// Activity by delegated admin (GDAP/DAP) partner accounts
 CloudAuditEvents
 | where Timestamp > ago(7d)
-| extend Props = parse_json(AdditionalFields)
+| extend Caller = tostring(RawEventData["caller"]),
+         Props = parse_json(AdditionalFields)
 | where tostring(Props.delegatedAdmin) == "true"
     or OperationName has "delegatedAdminRelationship"
-| project Timestamp, AccountObjectId, OperationName,
+| project Timestamp, Caller, OperationName,
           ResourceId, IPAddress, Props`,
       },
     ],
@@ -151,15 +152,14 @@ CloudAuditEvents
     xdrMappings: [
       {
         table: "EntraIdSignInEvents",
-        columns: ["AccountUpn", "IPAddress", "Country", "IsAnonymousProxy", "RiskLevelAggregated", "ConditionalAccessStatus", "ErrorCode"],
+        columns: ["AccountUpn", "IPAddress", "Country", "RiskLevelAggregated", "ConditionalAccessStatus", "ErrorCode"],
         kql: `EntraIdSignInEvents
 | where Timestamp > ago(1d)
 | where ErrorCode == 0
-| where IsAnonymousProxy == true
-    or RiskLevelAggregated >= 10
+| where RiskLevelAggregated >= 10
     or ConditionalAccessStatus == "notApplied"
 | project Timestamp, AccountUpn, IPAddress, Country,
-          IsAnonymousProxy, RiskLevelAggregated, ConditionalAccessStatus`,
+          RiskLevelAggregated, ConditionalAccessStatus`,
       },
       {
         table: "CloudAppEvents",
@@ -222,7 +222,7 @@ EntraIdSignInEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress", "AdditionalFields"],
+        columns: ["OperationName", "ResourceId", "IPAddress", "RawEventData", "AdditionalFields"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
 | where OperationName has_any (
@@ -230,8 +230,9 @@ EntraIdSignInEvents
     "microsoft.compute/virtualmachines/runcommand",
     "Microsoft.Compute/virtualMachines/extensions/write",
     "CustomScriptExtension","RunPowerShellScript","RunShellScript")
-| extend Details = parse_json(AdditionalFields)
-| project Timestamp, AccountObjectId, OperationName, ResourceId, IPAddress, Details`,
+| extend Caller = tostring(RawEventData["caller"]),
+         Details = parse_json(AdditionalFields)
+| project Timestamp, Caller, OperationName, ResourceId, IPAddress, Details`,
       },
       {
         table: "DeviceProcessEvents",
@@ -260,15 +261,16 @@ DeviceProcessEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress", "AdditionalFields"],
+        columns: ["OperationName", "ResourceId", "IPAddress", "RawEventData", "AdditionalFields"],
         kql: `// Burst of API write/execute operations in short window = scripted API abuse
 CloudAuditEvents
 | where Timestamp > ago(7d)
 | where ActionType != "Read"
+| extend Caller = tostring(RawEventData["caller"])
 | summarize ApiCalls = count(),
             Operations = make_set(OperationName, 20),
-            Resources = make_set(ObjectType, 10)
-    by AccountObjectId, IPAddress, bin(Timestamp, 10m)
+            Resources = make_set(ResourceId, 10)
+    by Caller, IPAddress, bin(Timestamp, 10m)
 | where ApiCalls > 30
 | order by ApiCalls desc`,
       },
@@ -300,7 +302,7 @@ CloudAppEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress", "AdditionalFields"],
+        columns: ["OperationName", "ResourceId", "IPAddress", "RawEventData", "AdditionalFields"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
 | where OperationName has_any (
@@ -310,8 +312,9 @@ CloudAppEvents
     "Microsoft.Logic/workflows/triggers/run/action",
     "Microsoft.Automation/automationAccounts/runbooks/write",
     "Microsoft.Automation/automationAccounts/jobs/write")
-| project Timestamp, AccountObjectId, OperationName,
-          ResourceId, ObjectType, IPAddress`,
+| extend Caller = tostring(RawEventData["caller"])
+| project Timestamp, Caller, OperationName,
+          ResourceId, IPAddress`,
       },
       {
         table: "AlertInfo",
@@ -461,7 +464,7 @@ CloudAppEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress"],
+        columns: ["OperationName", "ResourceId", "IPAddress", "RawEventData"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
 | where OperationName has_any (
@@ -470,8 +473,9 @@ CloudAppEvents
     "Microsoft.ContainerRegistry/registries/push/write",
     "Microsoft.ContainerRegistry/registries/importImage/action",
     "Microsoft.Compute/disks/write")
-| project Timestamp, AccountObjectId, OperationName,
-          ResourceId, ObjectType, IPAddress`,
+| extend Caller = tostring(RawEventData["caller"])
+| project Timestamp, Caller, OperationName,
+          ResourceId, IPAddress`,
       },
       {
         table: "AlertInfo",
@@ -529,7 +533,7 @@ CloudAppEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress"],
+        columns: ["OperationName", "ResourceId", "IPAddress", "RawEventData"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
 | where OperationName has_any (
@@ -538,8 +542,9 @@ CloudAppEvents
     "Microsoft.Security/policies/write",
     "microsoft.operationalinsights/workspaces/delete",
     "Microsoft.Authorization/policyAssignments/delete")
-| project Timestamp, AccountObjectId, OperationName,
-          ResourceId, ObjectType, IPAddress`,
+| extend Caller = tostring(RawEventData["caller"])
+| project Timestamp, Caller, OperationName,
+          ResourceId, IPAddress`,
       },
       {
         table: "AlertInfo",
@@ -565,7 +570,7 @@ CloudAppEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress", "AdditionalFields"],
+        columns: ["OperationName", "ResourceId", "IPAddress", "RawEventData", "AdditionalFields"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
 | where OperationName has_any (
@@ -573,14 +578,15 @@ CloudAppEvents
     "Microsoft.Storage/storageAccounts/write",
     "Microsoft.Network/virtualNetworks/write",
     "Microsoft.ContainerService/managedClusters/write")
-| extend Region = tostring(parse_json(AdditionalFields).location)
+| extend Caller = tostring(RawEventData["caller"]),
+         Region = tostring(parse_json(AdditionalFields).location)
 // Adjust to your organisation's approved regions
 | where Region !in~ (
     "eastus","eastus2","westus","westus2","westus3",
     "centralus","northcentralus","southcentralus",
     "westeurope","northeurope","uksouth","ukwest",
     "australiaeast","australiasoutheast")
-| project Timestamp, AccountObjectId, OperationName, Region,
+| project Timestamp, Caller, OperationName, Region,
           ResourceId, IPAddress`,
       },
     ],
@@ -595,7 +601,7 @@ CloudAppEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress", "AdditionalFields"],
+        columns: ["OperationName", "ResourceId", "IPAddress", "RawEventData", "AdditionalFields"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
 | where OperationName has_any (
@@ -603,9 +609,10 @@ CloudAppEvents
     "Microsoft.Compute/virtualMachineScaleSets/write",
     "Microsoft.ContainerService/managedClusters/write",
     "Microsoft.ContainerInstance/containerGroups/write")
+| extend Caller = tostring(RawEventData["caller"])
 | summarize VMsCreated = count(),
             IPs = make_set(IPAddress, 5)
-    by AccountObjectId, bin(Timestamp, 1h)
+    by Caller, bin(Timestamp, 1h)
 | where VMsCreated > 3
 | order by VMsCreated desc`,
       },
@@ -621,7 +628,7 @@ CloudAppEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress"],
+        columns: ["OperationName", "ResourceId", "IPAddress", "RawEventData"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
 | where OperationName has_any (
@@ -629,8 +636,9 @@ CloudAppEvents
     "Microsoft.Compute/disks/beginGetAccess/action",
     "Microsoft.Compute/snapshots/beginGetAccess/action",
     "Microsoft.Compute/disks/download")
-| project Timestamp, AccountObjectId, OperationName,
-          ResourceId, ObjectType, IPAddress`,
+| extend Caller = tostring(RawEventData["caller"])
+| project Timestamp, Caller, OperationName,
+          ResourceId, IPAddress`,
       },
     ],
   },
@@ -644,7 +652,7 @@ CloudAppEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress"],
+        columns: ["OperationName", "ResourceId", "IPAddress", "RawEventData"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
 | where OperationName has_any (
@@ -653,8 +661,9 @@ CloudAppEvents
     "Microsoft.ContainerService/managedClusters/delete",
     "Microsoft.ContainerInstance/containerGroups/delete",
     "Microsoft.Compute/disks/delete")
+| extend Caller = tostring(RawEventData["caller"])
 | summarize Deletions = count(), IPs = make_set(IPAddress, 5)
-    by AccountObjectId, ObjectType, bin(Timestamp, 1h)
+    by Caller, bin(Timestamp, 1h)
 | order by Deletions desc`,
       },
       {
@@ -961,16 +970,15 @@ IdentityLogonEvents
     xdrMappings: [
       {
         table: "EntraIdSignInEvents",
-        columns: ["AccountUpn", "IPAddress", "Country", "IsAnonymousProxy", "RiskLevelAggregated", "ErrorCode"],
+        columns: ["AccountUpn", "IPAddress", "Country", "RiskLevelAggregated", "ErrorCode"],
         kql: `// High-risk successful logins from anonymizers — credential stuffing success
 EntraIdSignInEvents
 | where Timestamp > ago(7d)
 | where ErrorCode == 0
-| where IsAnonymousProxy == true
-    or RiskLevelAggregated >= 10
+| where RiskLevelAggregated >= 10
 // Also look for logins from known breach/stuffing infrastructure
 | project Timestamp, AccountUpn, IPAddress, Country,
-          IsAnonymousProxy, RiskLevelAggregated`,
+          RiskLevelAggregated`,
       },
       {
         table: "AlertInfo",
@@ -1051,14 +1059,14 @@ CloudAppEvents
       },
       {
         table: "DataSecurityEvents",
-        columns: ["AccountUpn", "ActionType", "FileName", "SensitivityLabel", "PolicyName"],
+        columns: ["AccountUpn", "ActionType", "ObjectName", "SensitivityLabelId", "DlpPolicyMatchInfo"],
         kql: `// DLP match on credential-pattern content in Teams/SharePoint
 DataSecurityEvents
 | where Timestamp > ago(7d)
-| where PolicyName has_any (
+| where DlpPolicyMatchInfo has_any (
     "credential","password","secret","token","API key")
 | project Timestamp, AccountUpn, ActionType,
-          FileName, SensitivityLabel, PolicyName`,
+          ObjectName, SensitivityLabelId, DlpPolicyMatchInfo`,
       },
     ],
   },
@@ -1072,7 +1080,7 @@ DataSecurityEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress"],
+        columns: ["OperationName", "ResourceId", "IPAddress", "RawEventData"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
 | where OperationName has_any (
@@ -1082,8 +1090,9 @@ DataSecurityEvents
     "Microsoft.KeyVault/vaults/certificates/read",
     "Microsoft.Web/sites/config/list/action",
     "listConnectionStrings")
+| extend Caller = tostring(RawEventData["caller"])
 | summarize SecretReads = count(), Vaults = dcount(ResourceId)
-    by AccountObjectId, IPAddress, bin(Timestamp, 1h)
+    by Caller, IPAddress, bin(Timestamp, 1h)
 | where SecretReads > 10
 | order by SecretReads desc`,
       },
@@ -1111,7 +1120,7 @@ DataSecurityEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress"],
+        columns: ["OperationName", "ResourceId", "IPAddress", "RawEventData"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
 | where OperationName has_any (
@@ -1122,9 +1131,10 @@ DataSecurityEvents
     "Microsoft.KeyVault/vaults/read",
     "ListKeys","listKeys",
     "Microsoft.Authorization/roleAssignments/read")
+| extend Caller = tostring(RawEventData["caller"])
 | summarize OpCount = count(),
-            ObjectTypes = make_set(ObjectType, 20)
-    by AccountObjectId, IPAddress, bin(Timestamp, 1h)
+            Operations = make_set(OperationName, 20)
+    by Caller, IPAddress, bin(Timestamp, 1h)
 | where OpCount > 20
 | order by OpCount desc`,
       },
@@ -1155,7 +1165,7 @@ DataSecurityEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress"],
+        columns: ["OperationName", "ResourceId", "IPAddress", "RawEventData"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
 | where OperationName has_any (
@@ -1166,8 +1176,9 @@ DataSecurityEvents
     "Microsoft.Security/securityContacts/read",
     "Microsoft.Compute/disks/read",
     "Microsoft.Sql/servers/read")
-| summarize OpCount = count(), ObjectTypes = make_set(ObjectType, 15)
-    by AccountObjectId, IPAddress, bin(Timestamp, 1h)
+| extend Caller = tostring(RawEventData["caller"])
+| summarize OpCount = count(), Operations = make_set(OperationName, 15)
+    by Caller, IPAddress, bin(Timestamp, 1h)
 | where OpCount > 15
 | order by OpCount desc`,
       },
@@ -1229,13 +1240,13 @@ DataSecurityEvents
       },
       {
         table: "DataSecurityEvents",
-        columns: ["AccountUpn", "ActionType", "FileName", "SensitivityLabel", "PolicyName"],
+        columns: ["AccountUpn", "ActionType", "ObjectName", "SensitivityLabelId", "DlpPolicyMatchInfo"],
         kql: `DataSecurityEvents
 | where Timestamp > ago(7d)
 | where ActionType in ("FileAccessed","FileViewed","SearchQueryPerformed")
-| where SensitivityLabel in ("Highly Confidential","Confidential")
-| summarize Count = count(), Files = make_set(FileName, 20)
-    by AccountUpn, SensitivityLabel, bin(Timestamp, 1h)
+| where isnotempty(SensitivityLabelId)
+| summarize Count = count(), Files = make_set(ObjectName, 20)
+    by AccountUpn, SensitivityLabelId, bin(Timestamp, 1h)
 | order by Count desc`,
       },
     ],
@@ -1312,18 +1323,19 @@ DataSecurityEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress"],
+        columns: ["OperationName", "ResourceId", "IPAddress", "RawEventData"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
-| where ObjectType has_any (
+| where OperationName has_any (
     "Microsoft.ContainerService",
     "Microsoft.ContainerRegistry",
     "Microsoft.ContainerInstance",
     "Microsoft.App/containerApps",
     "Microsoft.Web/sites")
 | where ActionType == "Read"
-| summarize OpCount = count(), ObjectTypes = make_set(ObjectType, 10)
-    by AccountObjectId, IPAddress, bin(Timestamp, 1h)
+| extend Caller = tostring(RawEventData["caller"])
+| summarize OpCount = count(), Operations = make_set(OperationName, 10)
+    by Caller, IPAddress, bin(Timestamp, 1h)
 | where OpCount > 10
 | order by OpCount desc`,
       },
@@ -1352,7 +1364,7 @@ CloudProcessEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress"],
+        columns: ["OperationName", "ResourceId", "IPAddress", "RawEventData"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
 | where OperationName has_any (
@@ -1362,8 +1374,9 @@ CloudProcessEvents
     "microsoft.operationalinsights/workspaces/sharedkeys/read",
     "Microsoft.Security/alerts/read",
     "microsoft.insights/activitylogs/read")
+| extend Caller = tostring(RawEventData["caller"])
 | summarize LogReads = count()
-    by AccountObjectId, IPAddress, bin(Timestamp, 1h)
+    by Caller, IPAddress, bin(Timestamp, 1h)
 | where LogReads > 10
 | order by LogReads desc`,
       },
@@ -1443,14 +1456,14 @@ EntraIdSignInEvents
       },
       {
         table: "DataSecurityEvents",
-        columns: ["AccountUpn", "ActionType", "FileName", "SensitivityLabel", "PolicyName"],
+        columns: ["AccountUpn", "ActionType", "ObjectName", "SensitivityLabelId", "DlpPolicyMatchInfo"],
         kql: `DataSecurityEvents
 | where Timestamp > ago(7d)
-| where SensitivityLabel in ("Highly Confidential","Confidential")
+| where isnotempty(SensitivityLabelId)
 | where ActionType in (
     "FileDownloaded","FileCopied","FileAccessed","FileShared")
 | project Timestamp, AccountUpn, ActionType,
-          FileName, SensitivityLabel, PolicyName`,
+          ObjectName, SensitivityLabelId, DlpPolicyMatchInfo`,
       },
     ],
   },
@@ -1619,13 +1632,13 @@ EntraIdSignInEvents
       },
       {
         table: "DataSecurityEvents",
-        columns: ["AccountUpn", "ActionType", "FileName", "SensitivityLabel", "PolicyName"],
+        columns: ["AccountUpn", "ActionType", "ObjectName", "SensitivityLabelId", "DlpPolicyMatchInfo"],
         kql: `DataSecurityEvents
 | where Timestamp > ago(7d)
-| where PolicyName != "" or SensitivityLabel != ""
+| where isnotempty(DlpPolicyMatchInfo) or isnotempty(SensitivityLabelId)
 | where ActionType in ("FileUploaded","FileCopied","FileShared")
 | project Timestamp, AccountUpn, ActionType,
-          FileName, SensitivityLabel, PolicyName`,
+          ObjectName, SensitivityLabelId, DlpPolicyMatchInfo`,
       },
     ],
   },
@@ -1640,7 +1653,7 @@ EntraIdSignInEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress", "AdditionalFields"],
+        columns: ["OperationName", "ResourceId", "IPAddress", "RawEventData", "AdditionalFields"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
 | where OperationName has_any (
@@ -1648,9 +1661,10 @@ EntraIdSignInEvents
     "Microsoft.Compute/virtualMachineScaleSets/write",
     "Microsoft.ContainerService/managedClusters/write",
     "Microsoft.ContainerInstance/containerGroups/write")
+| extend Caller = tostring(RawEventData["caller"])
 | summarize VMsCreated = count(),
             IPs = make_set(IPAddress, 5)
-    by AccountObjectId, bin(Timestamp, 1h)
+    by Caller, bin(Timestamp, 1h)
 | where VMsCreated > 3
 | order by VMsCreated desc`,
       },
@@ -1716,17 +1730,18 @@ EntraIdSignInEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress"],
+        columns: ["OperationName", "ResourceId", "IPAddress", "RawEventData"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
-| where ActionType has_any (
+| where OperationName has_any (
     "Microsoft.Storage/storageAccounts/delete",
     "Microsoft.Storage/storageAccounts/blobServices/containers/delete",
     "Microsoft.Sql/servers/databases/delete",
     "Microsoft.DocumentDB/databaseAccounts/delete",
     "Microsoft.RecoveryServices/vaults/backupFabrics/delete")
+| extend Caller = tostring(RawEventData["caller"])
 | summarize Deletions = count(), Resources = make_set(ResourceId, 10)
-    by AccountUpn, ObjectType, bin(Timestamp, 1h)
+    by Caller, bin(Timestamp, 1h)
 | order by Deletions desc`,
       },
       {
@@ -1767,7 +1782,7 @@ EntraIdSignInEvents
       },
       {
         table: "CloudAuditEvents",
-        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress"],
+        columns: ["OperationName", "ResourceId", "IPAddress", "RawEventData"],
         kql: `// Ransomware prep: deleting backups before encryption
 CloudAuditEvents
 | where Timestamp > ago(7d)
@@ -1777,8 +1792,9 @@ CloudAuditEvents
     "Microsoft.RecoveryServices/vaults/backupPolicies/delete",
     "microsoft.backup/backupVaults/delete",
     "Microsoft.Compute/snapshots/delete")
-| project Timestamp, AccountObjectId, OperationName,
-          ResourceId, ObjectType, IPAddress`,
+| extend Caller = tostring(RawEventData["caller"])
+| project Timestamp, Caller, OperationName,
+          ResourceId, IPAddress`,
       },
     ],
   },
@@ -1792,7 +1808,7 @@ CloudAuditEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress"],
+        columns: ["OperationName", "ResourceId", "IPAddress", "RawEventData"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
 | where OperationName has_any (
@@ -1803,8 +1819,9 @@ CloudAuditEvents
     "Microsoft.Logic/workflows/disable/action",
     "Microsoft.Automation/automationAccounts/webhooks/action",
     "Microsoft.Security/pricings/write")
-| summarize Stops = count(), Services = make_set(ObjectType, 10)
-    by AccountObjectId, IPAddress, bin(Timestamp, 1h)
+| extend Caller = tostring(RawEventData["caller"])
+| summarize Stops = count(), Services = make_set(OperationName, 10)
+    by Caller, IPAddress, bin(Timestamp, 1h)
 | where Stops > 3
 | order by Stops desc`,
       },
@@ -1831,7 +1848,7 @@ CloudAuditEvents
     xdrMappings: [
       {
         table: "CloudAuditEvents",
-        columns: ["AccountObjectId", "OperationName", "ResourceId", "ObjectType", "IPAddress"],
+        columns: ["OperationName", "ResourceId", "IPAddress", "RawEventData"],
         kql: `CloudAuditEvents
 | where Timestamp > ago(7d)
 | where OperationName has_any (
@@ -1840,8 +1857,9 @@ CloudAuditEvents
     "Microsoft.Cdn/profiles/endpoints/write",
     "Microsoft.Network/frontDoors/write")
 // Unexpected changes to web/CDN resources
-| project Timestamp, AccountObjectId, OperationName,
-          ResourceId, ObjectType, IPAddress`,
+| extend Caller = tostring(RawEventData["caller"])
+| project Timestamp, Caller, OperationName,
+          ResourceId, IPAddress`,
       },
       {
         table: "AlertInfo",

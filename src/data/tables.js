@@ -19,7 +19,7 @@ export const TABLES = [
   { id: "EntraIdSignInEvents",                    domain: "identity",  desc: "Entra interactive and non-interactive sign-ins (replaces AADSignInEventsBeta)", linkableIds: true, linkableIdCols: [{ col: "SessionId (SID — session-level)" }, { col: "AccountObjectId", highlight: true }] },
   { id: "EntraIdSpnSignInEvents",                 domain: "identity",  desc: "Service principal and managed identity sign-ins" },
   { id: "AADSignInEventsBeta",                    domain: "identity",  desc: "Legacy Entra interactive and non-interactive sign-in events.", deprecated: true, replacedBy: "EntraIdSignInEvents" },
-  { id: "GraphApiAuditEvents",                    domain: "identity",  desc: "Graph API calls made against the tenant", linkableIds: true, linkableIdCols: [{ col: "SessionId (SID — session-level)" }, { col: "SignInActivityId (UTI — per-token)" }] },
+  { id: "GraphApiAuditEvents",                    domain: "identity",  extraDomains: ["cloud", "endpoint"], desc: "Graph API calls made against the tenant — also surfaces VM Run Command and remote device execution via ARM/Graph API", linkableIds: true, linkableIdCols: [{ col: "SessionId (SID — session-level)" }, { col: "SignInActivityId (UTI — per-token)" }] },
   { id: "IdentityAccountInfo",                    domain: "identity",  desc: "Account info with link to owning identity" },
 
   // ── Email (MDO) ───────────────────────────────────────────────────────────────

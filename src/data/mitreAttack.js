@@ -145,12 +145,12 @@ export const TECHNIQUES = [
     xdrMappings: [
       {
         table: "EntraIdSignInEvents",
-        columns: ["AccountUpn", "IPAddress", "Country", "IsAnonymousProxy", "RiskLevelAggregated", "ErrorCode"],
+        columns: ["AccountUpn", "IPAddress", "Country", "RiskLevelAggregated", "ErrorCode"],
         kql: `EntraIdSignInEvents
 | where Timestamp > ago(7d)
 | where RiskLevelAggregated >= 10
 | where ErrorCode == 0
-| project Timestamp, AccountUpn, IPAddress, Country, IsAnonymousProxy, RiskLevelAggregated`,
+| project Timestamp, AccountUpn, IPAddress, Country, RiskLevelAggregated`,
       },
       {
         table: "CloudAppEvents",
@@ -209,12 +209,12 @@ export const TECHNIQUES = [
     xdrMappings: [
       {
         table: "EntraIdSignInEvents",
-        columns: ["AccountUpn", "IPAddress", "Country", "IsAnonymousProxy", "RiskLevelAggregated", "ConditionalAccessStatus"],
+        columns: ["AccountUpn", "IPAddress", "Country", "RiskLevelAggregated", "ConditionalAccessStatus"],
         kql: `EntraIdSignInEvents
 | where Timestamp > ago(1d)
 | where ErrorCode == 0
 | where Country != "<expected_country>"
-| where IsAnonymousProxy == true or RiskLevelAggregated >= 10
+| where RiskLevelAggregated >= 10
 | project Timestamp, AccountUpn, IPAddress, Country, RiskLevelAggregated`,
       },
       {
@@ -336,7 +336,7 @@ export const TECHNIQUES = [
 | where Application in ("Azure VPN", "GlobalProtect", "Cisco AnyConnect", "F5 BIG-IP", "Citrix Gateway")
     or Application has_any ("VPN", "Remote Access", "Gateway")
 | where ErrorCode == 0
-| where RiskLevelAggregated >= 10 or IsAnonymousProxy == true
+| where RiskLevelAggregated >= 10
 | project Timestamp, AccountUpn, IPAddress, Country, Application, RiskLevelAggregated`,
       },
       {
@@ -1866,11 +1866,11 @@ export const TECHNIQUES = [
     xdrMappings: [
       {
         table: "EntraIdSignInEvents",
-        columns: ["AccountUpn", "IPAddress", "Country", "UserAgent", "RiskLevelAggregated", "IsAnonymousProxy"],
+        columns: ["AccountUpn", "IPAddress", "Country", "UserAgent", "RiskLevelAggregated"],
         kql: `EntraIdSignInEvents
 | where Timestamp > ago(1d)
 | where ErrorCode == 0
-| where RiskLevelAggregated >= 10 or IsAnonymousProxy == true
+| where RiskLevelAggregated >= 10
 | join kind=inner (
     EntraIdSignInEvents
     | where Timestamp > ago(1d) and ErrorCode == 0

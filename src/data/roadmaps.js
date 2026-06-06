@@ -1785,7 +1785,7 @@ AlertInfo
 | where FileName in~ (
     "powershell.exe","cmd.exe","mshta.exe","certutil.exe")
   and InitiatingProcessFileName in~ (
-    "explorer.exe","userinit.exe","WinLogonUI.exe")
+    "explorer.exe","userinit.exe")
 | where ProcessCommandLine has_any (
     "-EncodedCommand","-enc ",
     "IEX","Invoke-Expression","DownloadString",

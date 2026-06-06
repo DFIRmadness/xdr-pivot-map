@@ -276,7 +276,7 @@ export const COLUMN_INFO = {
       { table: "DeviceTvmHardwareFirmware" },
       { table: "DeviceTvmBrowserExtensions" },
       { table: "DeviceTvmCertificateInfo" },
-      { table: "CloudProcessEvents" },
+      // CloudProcessEvents has no DeviceId — it uses pod/container identifiers
       { table: "AlertEvidence" },
       { table: "BehaviorInfo" },
       { table: "BehaviorEntities" },
@@ -346,7 +346,7 @@ export const COLUMN_INFO = {
       { table: "DeviceRegistryEvents" },
       { table: "DeviceEvents" },
       { table: "DeviceImageLoadEvents" },
-      { table: "CloudProcessEvents" },
+      // CloudProcessEvents has no InitiatingProcessId — parent is tracked via ParentProcessName
     ],
   },
 
@@ -374,7 +374,7 @@ export const COLUMN_INFO = {
       { table: "DeviceProcessEvents" },
       { table: "DeviceFileEvents" },
       { table: "DeviceImageLoadEvents" },
-      { table: "CloudProcessEvents" },
+      // CloudProcessEvents uses ProcessName, not FileName
       { table: "EmailAttachmentInfo" },
       { table: "AlertEvidence" },
     ],
@@ -433,7 +433,7 @@ export const COLUMN_INFO = {
       { table: "IdentityDirectoryEvents" },
       { table: "CloudAppEvents" },
       { table: "CloudAuditEvents" },
-      { table: "CloudProcessEvents" },
+      // CloudProcessEvents does not have an ActionType column
       { table: "BehaviorInfo" },
       { table: "BehaviorEntities" },
       { table: "DataSecurityEvents" },
@@ -674,15 +674,9 @@ export const COLUMN_INFO = {
     ],
   },
 
-  "MalwareDetectionMethod": {
-    docs: "Method used to detect malware in an email attachment. Examples include: ATP detonation, antivirus engine, file reputation, Zero-hour Auto Purge (ZAP).",
-    plain: "How the malware in the attachment was detected — detonation sandbox, AV signature, or file reputation.",
-    dfir: "Tells you how confident the detection is. ATP detonation = highest confidence (sandbox observed malicious behaviour). File reputation = hash-based, reliable. ZAP = detected after delivery and retroactively pulled. If MalwareDetectionMethod is empty but you have a suspicious attachment, check SHA256 in threat intel.",
-    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-emailattachmentinfo-table",
-    crossTables: [
-      { table: "EmailAttachmentInfo" },
-    ],
-  },
+  // MalwareDetectionMethod is NOT a column in EmailAttachmentInfo.
+  // The correct columns for threat verdict data are ThreatTypes and DetectionMethods.
+  // See: https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-emailattachmentinfo-table
 
   "Url": {
     docs: "The full URL associated with an email body, attachment, or click event. Captured at the time of processing by Defender for Office 365.",
@@ -778,7 +772,7 @@ export const COLUMN_INFO = {
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-cloudappevents-table",
     crossTables: [
       { table: "CloudAppEvents" },
-      { table: "GraphApiAuditEvents" },
+      // GraphApiAuditEvents does not have an Application column
     ],
   },
 
@@ -789,18 +783,18 @@ export const COLUMN_INFO = {
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-cloudappevents-table",
     crossTables: [
       { table: "CloudAppEvents" },
-      { table: "GraphApiAuditEvents" },
+      // GraphApiAuditEvents does not have an ObjectName column
     ],
   },
 
   "ResourceId": {
     docs: "The full Azure Resource Manager (ARM) resource identifier of the Azure resource involved in the event, in the format /subscriptions/{id}/resourceGroups/{rg}/providers/{type}/{name}.",
     plain: "The unique full path to an Azure resource — think of it as the resource's absolute address inside Azure. It tells you which subscription, resource group, and specific resource (VM, storage account, Key Vault, etc.) was involved.",
-    dfir: "In AiTM and Azure-targeting attacks, the ResourceId in CloudAuditEvents identifies exactly which VM received a Run Command or extension write. Parse the resource name from the end of the path to correlate with DeviceName in CloudProcessEvents and DeviceNetworkEvents for the full execution trail.",
+    dfir: "In AiTM and Azure-targeting attacks, the ResourceId in CloudAuditEvents identifies exactly which VM received a Run Command or extension write. Parse the resource name from the end of the path to correlate with DeviceName in DeviceProcessEvents (requires Defender for Servers Plan 2 on the VM) for the full execution trail. Note: CloudProcessEvents uses AzureResourceId, not ResourceId — these are different columns.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-cloudauditevents-table",
     crossTables: [
       { table: "CloudAuditEvents" },
-      { table: "CloudProcessEvents" },
+      // CloudProcessEvents uses AzureResourceId, not ResourceId
     ],
   },
 
@@ -1420,14 +1414,24 @@ export const COLUMN_INFO = {
 
   // ── Data classification columns ───────────────────────────────────────────────
 
+  "SensitivityLabelId": {
+    docs: "The Microsoft Purview sensitivity label ID currently applied to the item. A string identifier (GUID) that maps to a label such as Confidential or Highly Confidential.",
+    plain: "The GUID of the Purview sensitivity label on the file or item involved in the event.",
+    dfir: "Use this to triage DLP violations by data sensitivity — a SensitivityLabelId corresponding to 'Highly Confidential' combined with an exfiltration ActionType is a critical insider threat signal. Join to your organisation's label registry to convert the GUID to a human-readable label name. Also present as PreviousSensitivityLabelId for label-downgrade detection.",
+    docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-datasecurityevents-table",
+    crossTables: [
+      { table: "DataSecurityEvents" },
+    ],
+  },
+
   "SensitivityLabel": {
     docs: "The Microsoft Purview Information Protection sensitivity label applied to the file at the time of the event. Examples: Confidential, Highly Confidential, Public.",
     plain: "The data classification label on the file — tells you how sensitive the organisation considers this data.",
-    dfir: "Data exfiltration severity multiplier. A file access or copy event where SensitivityLabel is 'Highly Confidential' or 'Confidential' is far more serious than the same action on an unlabelled file. In DataSecurityEvents, this field identifies which DLP policies were violated and what class of data was involved. Filter DeviceFileEvents by high SensitivityLabel to find bulk access of sensitive files.",
+    dfir: "Data exfiltration severity multiplier. A file access or copy event where SensitivityLabel is 'Highly Confidential' or 'Confidential' is far more serious than the same action on an unlabelled file. Filter DeviceFileEvents by high SensitivityLabel to find bulk access of sensitive files. Note: DataSecurityEvents uses SensitivityLabelId (a string label ID), not SensitivityLabel.",
     docUrl: "https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-devicefileevents-table",
     crossTables: [
       { table: "DeviceFileEvents" },
-      { table: "DataSecurityEvents" },
+      // DataSecurityEvents uses SensitivityLabelId, not SensitivityLabel
     ],
   },
 

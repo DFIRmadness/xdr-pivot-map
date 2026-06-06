@@ -32,6 +32,7 @@ export const TABLE_DETAILS = [
       { name: "IsAzureADJoined",   note: "Cloud-joined vs. on-prem domain — affects auth paths" },
     ],
     categories: ["processes", "identity", "network"],
+    schemaColumns: ["Timestamp", "DeviceId", "DeviceName", "ClientVersion", "PublicIP", "OSArchitecture", "OSPlatform", "OSBuild", "IsAzureADJoined", "JoinType", "AadDeviceId", "LoggedOnUsers", "RegistryDeviceTag", "OSVersion", "MachineGroup", "ReportId", "OnboardingStatus", "AdditionalFields", "DeviceCategory", "DeviceType", "DeviceSubtype", "Model", "Vendor", "OSDistribution", "OSVersionInfo", "MergedDeviceIds", "MergedToDeviceId", "IsInternetFacing", "SensorHealthState", "IsExcluded", "ExclusionReason", "ExposureLevel", "AssetValue", "DeviceManualTags", "DeviceDynamicTags", "ConnectivityType", "HostDeviceId", "AzureResourceId", "AwsResourceName", "GcpFullResourceName", "HardwareUuid", "CloudPlatforms", "AzureVmId", "AzureVmSubscriptionId", "IsTransient", "OsBuildRevision", "MitigationStatus", "Site", "DiscoverySources"],
   },
 
   {
@@ -51,6 +52,7 @@ export const TABLE_DETAILS = [
       { name: "LogonId",                       note: "Links this process to a specific logon session" },
     ],
     categories: ["processes"],
+    schemaColumns: ["Timestamp", "DeviceId", "DeviceName", "ActionType", "FileName", "FolderPath", "SHA1", "SHA256", "MD5", "FileSize", "ProcessVersionInfoCompanyName", "ProcessVersionInfoProductName", "ProcessVersionInfoProductVersion", "ProcessVersionInfoInternalFileName", "ProcessVersionInfoOriginalFileName", "ProcessVersionInfoFileDescription", "ProcessId", "ProcessCommandLine", "ProcessIntegrityLevel", "ProcessTokenElevation", "ProcessCreationTime", "AccountDomain", "AccountName", "AccountSid", "AccountUpn", "AccountObjectId", "LogonId", "InitiatingProcessAccountDomain", "InitiatingProcessAccountName", "InitiatingProcessAccountSid", "InitiatingProcessAccountUpn", "InitiatingProcessAccountObjectId", "InitiatingProcessLogonId", "InitiatingProcessIntegrityLevel", "InitiatingProcessTokenElevation", "InitiatingProcessSHA1", "InitiatingProcessSHA256", "InitiatingProcessMD5", "InitiatingProcessFileName", "InitiatingProcessFileSize", "InitiatingProcessVersionInfoCompanyName", "InitiatingProcessVersionInfoProductName", "InitiatingProcessVersionInfoProductVersion", "InitiatingProcessVersionInfoInternalFileName", "InitiatingProcessVersionInfoOriginalFileName", "InitiatingProcessVersionInfoFileDescription", "InitiatingProcessId", "InitiatingProcessCommandLine", "InitiatingProcessCreationTime", "InitiatingProcessFolderPath", "InitiatingProcessParentId", "InitiatingProcessParentFileName", "InitiatingProcessParentCreationTime", "InitiatingProcessSignerType", "InitiatingProcessSignatureStatus", "ReportId", "AppGuardContainerId", "AdditionalFields", "InitiatingProcessSessionId", "IsInitiatingProcessRemoteSession", "InitiatingProcessRemoteSessionDeviceName", "InitiatingProcessRemoteSessionIP", "CreatedProcessSessionId", "IsProcessRemoteSession", "ProcessRemoteSessionDeviceName", "ProcessRemoteSessionIP", "ProcessUniqueId", "InitiatingProcessUniqueId", "LogonID"],
   },
 
   {
@@ -69,6 +71,7 @@ export const TABLE_DETAILS = [
       { name: "AdditionalFields",          note: "JSON blob — contains extra connection metadata by ActionType" },
     ],
     categories: ["network"],
+    schemaColumns: ["Timestamp", "DeviceId", "DeviceName", "ActionType", "RemoteIP", "RemotePort", "RemoteUrl", "LocalIP", "LocalPort", "Protocol", "LocalIPType", "RemoteIPType", "InitiatingProcessSHA1", "InitiatingProcessSHA256", "InitiatingProcessMD5", "InitiatingProcessFileName", "InitiatingProcessFileSize", "InitiatingProcessVersionInfoCompanyName", "InitiatingProcessVersionInfoProductName", "InitiatingProcessVersionInfoProductVersion", "InitiatingProcessVersionInfoInternalFileName", "InitiatingProcessVersionInfoOriginalFileName", "InitiatingProcessVersionInfoFileDescription", "InitiatingProcessId", "InitiatingProcessCommandLine", "InitiatingProcessCreationTime", "InitiatingProcessFolderPath", "InitiatingProcessParentFileName", "InitiatingProcessParentId", "InitiatingProcessParentCreationTime", "InitiatingProcessAccountDomain", "InitiatingProcessAccountName", "InitiatingProcessAccountSid", "InitiatingProcessAccountUpn", "InitiatingProcessAccountObjectId", "InitiatingProcessIntegrityLevel", "InitiatingProcessTokenElevation", "ReportId", "AppGuardContainerId", "AdditionalFields", "InitiatingProcessSessionId", "IsInitiatingProcessRemoteSession", "InitiatingProcessRemoteSessionDeviceName", "InitiatingProcessRemoteSessionIP", "ProcessUniqueId", "InitiatingProcessUniqueId", "LogonID"],
   },
 
   {
@@ -87,6 +90,7 @@ export const TABLE_DETAILS = [
       { name: "AccountName",              note: "User context for the file operation" },
     ],
     categories: ["files"],
+    schemaColumns: ["Timestamp", "DeviceId", "DeviceName", "ActionType", "FileName", "FolderPath", "SHA1", "SHA256", "MD5", "FileOriginUrl", "FileOriginReferrerUrl", "FileOriginIP", "PreviousFolderPath", "PreviousFileName", "FileSize", "InitiatingProcessAccountDomain", "InitiatingProcessAccountName", "InitiatingProcessAccountSid", "InitiatingProcessAccountUpn", "InitiatingProcessAccountObjectId", "InitiatingProcessMD5", "InitiatingProcessSHA1", "InitiatingProcessSHA256", "InitiatingProcessFolderPath", "InitiatingProcessFileName", "InitiatingProcessFileSize", "InitiatingProcessVersionInfoCompanyName", "InitiatingProcessVersionInfoProductName", "InitiatingProcessVersionInfoProductVersion", "InitiatingProcessVersionInfoInternalFileName", "InitiatingProcessVersionInfoOriginalFileName", "InitiatingProcessVersionInfoFileDescription", "InitiatingProcessId", "InitiatingProcessCommandLine", "InitiatingProcessCreationTime", "InitiatingProcessIntegrityLevel", "InitiatingProcessTokenElevation", "InitiatingProcessParentId", "InitiatingProcessParentFileName", "InitiatingProcessParentCreationTime", "RequestProtocol", "RequestSourceIP", "RequestSourcePort", "RequestAccountName", "RequestAccountDomain", "RequestAccountSid", "ShareName", "SensitivityLabel", "SensitivitySubLabel", "IsAzureInfoProtectionApplied", "ReportId", "AppGuardContainerId", "AdditionalFields", "InitiatingProcessSessionId", "IsInitiatingProcessRemoteSession", "InitiatingProcessRemoteSessionDeviceName", "InitiatingProcessRemoteSessionIP", "ProcessUniqueId", "InitiatingProcessUniqueId", "LogonID"],
   },
 
   {
@@ -104,6 +108,7 @@ export const TABLE_DETAILS = [
       { name: "DeviceName",               note: "Pivot to other device tables with this" },
     ],
     categories: ["processes", "files"],
+    schemaColumns: ["Timestamp", "DeviceId", "DeviceName", "ActionType", "RegistryKey", "RegistryValueType", "RegistryValueName", "RegistryValueData", "PreviousRegistryKey", "PreviousRegistryValueName", "PreviousRegistryValueData", "InitiatingProcessAccountDomain", "InitiatingProcessAccountName", "InitiatingProcessAccountSid", "InitiatingProcessAccountUpn", "InitiatingProcessAccountObjectId", "InitiatingProcessSHA1", "InitiatingProcessSHA256", "InitiatingProcessMD5", "InitiatingProcessFileName", "InitiatingProcessFileSize", "InitiatingProcessVersionInfoCompanyName", "InitiatingProcessVersionInfoProductName", "InitiatingProcessVersionInfoProductVersion", "InitiatingProcessVersionInfoInternalFileName", "InitiatingProcessVersionInfoOriginalFileName", "InitiatingProcessVersionInfoFileDescription", "InitiatingProcessId", "InitiatingProcessCommandLine", "InitiatingProcessCreationTime", "InitiatingProcessFolderPath", "InitiatingProcessParentId", "InitiatingProcessParentFileName", "InitiatingProcessParentCreationTime", "InitiatingProcessIntegrityLevel", "InitiatingProcessTokenElevation", "ReportId", "AppGuardContainerId", "InitiatingProcessSessionId", "IsInitiatingProcessRemoteSession", "InitiatingProcessRemoteSessionDeviceName", "InitiatingProcessRemoteSessionIP", "ProcessUniqueId", "InitiatingProcessUniqueId"],
   },
 
   {
@@ -122,6 +127,7 @@ export const TABLE_DETAILS = [
       { name: "LogonId",        note: "Links to DeviceProcessEvents for what ran in this session" },
     ],
     categories: ["identity", "network"],
+    schemaColumns: ["Timestamp", "DeviceId", "DeviceName", "ActionType", "LogonType", "AccountDomain", "AccountName", "AccountSid", "Protocol", "FailureReason", "IsLocalAdmin", "LogonId", "RemoteDeviceName", "RemoteIP", "RemoteIPType", "RemotePort", "InitiatingProcessAccountDomain", "InitiatingProcessAccountName", "InitiatingProcessAccountSid", "InitiatingProcessAccountUpn", "InitiatingProcessAccountObjectId", "InitiatingProcessIntegrityLevel", "InitiatingProcessTokenElevation", "InitiatingProcessSHA1", "InitiatingProcessSHA256", "InitiatingProcessMD5", "InitiatingProcessFileName", "InitiatingProcessFileSize", "InitiatingProcessVersionInfoCompanyName", "InitiatingProcessVersionInfoProductName", "InitiatingProcessVersionInfoProductVersion", "InitiatingProcessVersionInfoInternalFileName", "InitiatingProcessVersionInfoOriginalFileName", "InitiatingProcessVersionInfoFileDescription", "InitiatingProcessId", "InitiatingProcessCommandLine", "InitiatingProcessCreationTime", "InitiatingProcessFolderPath", "InitiatingProcessParentId", "InitiatingProcessParentFileName", "InitiatingProcessParentCreationTime", "ReportId", "AppGuardContainerId", "AdditionalFields", "InitiatingProcessSessionId", "IsInitiatingProcessRemoteSession", "InitiatingProcessRemoteSessionDeviceName", "InitiatingProcessRemoteSessionIP", "ProcessUniqueId", "InitiatingProcessUniqueId"],
   },
 
   {
@@ -139,6 +145,7 @@ export const TABLE_DETAILS = [
       { name: "FileName",                 note: "Present for file-related sub-types" },
     ],
     categories: ["processes", "files"],
+    schemaColumns: ["Timestamp", "DeviceId", "DeviceName", "ActionType", "FileName", "FolderPath", "SHA1", "SHA256", "MD5", "FileSize", "AccountDomain", "AccountName", "AccountSid", "RemoteUrl", "RemoteDeviceName", "ProcessId", "ProcessCommandLine", "ProcessCreationTime", "ProcessTokenElevation", "LogonId", "RegistryKey", "RegistryValueName", "RegistryValueData", "RemoteIP", "RemotePort", "LocalIP", "LocalPort", "FileOriginUrl", "FileOriginIP", "InitiatingProcessSHA1", "InitiatingProcessSHA256", "InitiatingProcessMD5", "InitiatingProcessFileName", "InitiatingProcessFileSize", "InitiatingProcessFolderPath", "InitiatingProcessId", "InitiatingProcessCommandLine", "InitiatingProcessCreationTime", "InitiatingProcessAccountDomain", "InitiatingProcessAccountName", "InitiatingProcessAccountSid", "InitiatingProcessAccountUpn", "InitiatingProcessAccountObjectId", "InitiatingProcessVersionInfoCompanyName", "InitiatingProcessVersionInfoProductName", "InitiatingProcessVersionInfoProductVersion", "InitiatingProcessVersionInfoInternalFileName", "InitiatingProcessVersionInfoOriginalFileName", "InitiatingProcessVersionInfoFileDescription", "InitiatingProcessParentId", "InitiatingProcessParentFileName", "InitiatingProcessParentCreationTime", "InitiatingProcessLogonId", "ReportId", "AppGuardContainerId", "AdditionalFields", "InitiatingProcessSessionId", "IsInitiatingProcessRemoteSession", "InitiatingProcessRemoteSessionDeviceName", "InitiatingProcessRemoteSessionIP", "CreatedProcessSessionId", "IsProcessRemoteSession", "ProcessRemoteSessionDeviceName", "ProcessRemoteSessionIP", "ProcessUniqueId", "InitiatingProcessUniqueId"],
   },
 
   {
@@ -147,15 +154,16 @@ export const TABLE_DETAILS = [
     plain: "Every DLL loaded into a running process. Attackers use DLL side-loading, reflective loading, and COM hijacking to inject malicious code into legitimate processes. This table is your primary source for detecting those techniques — look for unknown DLLs loaded by trusted processes from unusual paths or with suspicious hashes.",
     sources: ["Microsoft Defender for Endpoint (MDE) sensor"],
     topColumns: [
-      { name: "FileName",                  note: "Name of the loaded DLL / module" },
-      { name: "FolderPath",               note: "Path of the loaded module — non-standard paths are suspicious" },
-      { name: "SHA256",                    note: "Hash of the loaded DLL — pivot to threat intel" },
-      { name: "InitiatingProcessFileName", note: "Process that loaded the module" },
-      { name: "InitiatingProcessSHA256",   note: "Hash of the loading process" },
-      { name: "IsSigned",                  note: "Unsigned DLLs loaded by signed processes are high signal" },
-      { name: "Signer",                    note: "Who signed the DLL — unexpected signer = red flag" },
+      { name: "FileName",                     note: "Name of the loaded DLL / module" },
+      { name: "FolderPath",                   note: "Path of the loaded module — non-standard paths are suspicious" },
+      { name: "SHA256",                        note: "Hash of the loaded DLL — pivot to threat intel (often not populated; use SHA1 when absent)" },
+      { name: "InitiatingProcessFileName",     note: "Process that loaded the module" },
+      { name: "InitiatingProcessCommandLine",  note: "Full command line of the loading process — context for sideloading chains" },
+      { name: "InitiatingProcessSHA256",       note: "Hash of the loading process" },
+      { name: "InitiatingProcessId",           note: "PID of the loading process — join to DeviceProcessEvents for process tree" },
     ],
     categories: ["processes", "files"],
+    schemaColumns: ["Timestamp", "DeviceId", "DeviceName", "ActionType", "FileName", "FolderPath", "SHA1", "SHA256", "MD5", "FileSize", "InitiatingProcessAccountDomain", "InitiatingProcessAccountName", "InitiatingProcessAccountSid", "InitiatingProcessAccountUpn", "InitiatingProcessAccountObjectId", "InitiatingProcessIntegrityLevel", "InitiatingProcessTokenElevation", "InitiatingProcessSHA1", "InitiatingProcessSHA256", "InitiatingProcessMD5", "InitiatingProcessFileName", "InitiatingProcessFileSize", "InitiatingProcessVersionInfoCompanyName", "InitiatingProcessVersionInfoProductName", "InitiatingProcessVersionInfoProductVersion", "InitiatingProcessVersionInfoInternalFileName", "InitiatingProcessVersionInfoOriginalFileName", "InitiatingProcessVersionInfoFileDescription", "InitiatingProcessId", "InitiatingProcessCommandLine", "InitiatingProcessCreationTime", "InitiatingProcessFolderPath", "InitiatingProcessParentId", "InitiatingProcessParentFileName", "InitiatingProcessParentCreationTime", "ReportId", "AppGuardContainerId", "InitiatingProcessSessionId", "IsInitiatingProcessRemoteSession", "InitiatingProcessRemoteSessionDeviceName", "InitiatingProcessRemoteSessionIP", "ProcessUniqueId", "InitiatingProcessUniqueId"],
   },
 
   {
@@ -164,7 +172,7 @@ export const TABLE_DETAILS = [
     plain: "Code-signing certificate details for files seen on endpoints. When attackers sign their malware with stolen or self-signed certificates to bypass defenses, this table exposes them. You can hunt for suspicious signers, certificates shared across multiple files, or known malicious certificate thumbprints.",
     sources: ["Microsoft Defender for Endpoint (MDE) sensor", "Windows Authenticode verification"],
     topColumns: [
-      { name: "SHA256",              note: "Hash of the signed file — join to DeviceFileEvents / DeviceProcessEvents" },
+      { name: "SHA1",                note: "SHA-1 of the signed file — join key to DeviceFileEvents / DeviceProcessEvents (table does not include SHA256)" },
       { name: "Signer",              note: "Display name of the certificate's subject" },
       { name: "Issuer",              note: "Certificate authority — self-signed = Issuer equals Signer" },
       { name: "SignerHash",          note: "Unique signer ID — hunt for a signer across multiple files" },
@@ -173,6 +181,7 @@ export const TABLE_DETAILS = [
       { name: "CertificateExpirationTime", note: "Expired certs on active files are suspicious" },
     ],
     categories: ["files"],
+    schemaColumns: ["Timestamp", "DeviceId", "DeviceName", "SHA1", "IsSigned", "SignatureType", "Signer", "SignerHash", "Issuer", "IssuerHash", "CertificateSerialNumber", "CrlDistributionPointUrls", "CertificateCreationTime", "CertificateExpirationTime", "CertificateCountersignatureTime", "IsTrusted", "IsRootSignerMicrosoft", "ReportId"],
   },
 
   {
@@ -190,6 +199,7 @@ export const TABLE_DETAILS = [
       { name: "DeviceName",      note: "Join to other device tables" },
     ],
     categories: ["network"],
+    schemaColumns: ["Timestamp", "DeviceId", "DeviceName", "NetworkAdapterName", "MacAddress", "NetworkAdapterType", "NetworkAdapterStatus", "TunnelType", "ConnectedNetworks", "DnsAddresses", "IPv4Dhcp", "IPv6Dhcp", "DefaultGateways", "IPAddresses", "ReportId", "NetworkAdapterVendor", "OnboardingStatus", "NetworkAdapterDnsSuffix"],
   },
 
   // ── Identity ──────────────────────────────────────────────────────────────
@@ -211,6 +221,7 @@ export const TABLE_DETAILS = [
       { name: "Tags",                 note: "MDI sensitivity tags — privileged accounts, domain admins, etc." },
     ],
     categories: ["identity"],
+    schemaColumns: ["Timestamp", "ReportId", "AccountObjectId", "AccountUpn", "OnPremSid", "AccountDisplayName", "AccountName", "AccountDomain", "CriticalityLevel", "Type", "DistinguishedName", "CloudSid", "GivenName", "Surname", "Department", "JobTitle", "EmailAddress", "SipProxyAddress", "Address", "City", "Country", "IsAccountEnabled", "Manager", "Phone", "CreatedDateTime", "ChangeSource", "BlastRadius", "CompanyName", "DeletedDateTime", "EmployeeId", "OtherMailAddresses", "RiskLevel", "RiskLevelDetails", "State", "Tags", "AssignedRoles", "PrivilegedEntraPimRoles", "TenantId", "SourceSystem", "OnPremObjectId", "TenantMembershipType", "RiskStatus", "UserAccountControl", "IdentityEnvironment", "SourceProviders", "GroupMembership"],
   },
 
   {
@@ -229,6 +240,7 @@ export const TABLE_DETAILS = [
       { name: "Country",         note: "Geo source — impossible travel if multiple countries in short window" },
     ],
     categories: ["identity", "network"],
+    schemaColumns: ["Timestamp", "ActionType", "Application", "LogonType", "Protocol", "FailureReason", "AccountName", "AccountDomain", "AccountUpn", "AccountSid", "AccountObjectId", "AccountDisplayName", "DeviceName", "DeviceType", "OSPlatform", "IPAddress", "Port", "DestinationDeviceName", "DestinationIPAddress", "DestinationPort", "TargetDeviceName", "TargetAccountDisplayName", "Location", "Isp", "ReportId", "AdditionalFields"],
   },
 
   {
@@ -245,6 +257,7 @@ export const TABLE_DETAILS = [
       { name: "DestinationDeviceName",   note: "Target resource in some event types" },
     ],
     categories: ["identity"],
+    schemaColumns: ["Timestamp", "ActionType", "Application", "TargetAccountUpn", "TargetAccountDisplayName", "TargetDeviceName", "DestinationDeviceName", "DestinationIPAddress", "DestinationPort", "Protocol", "AccountName", "AccountDomain", "AccountUpn", "AccountSid", "AccountObjectId", "AccountDisplayName", "DeviceName", "IPAddress", "Port", "Location", "ISP", "ReportId", "AdditionalFields"],
   },
 
   {
@@ -261,6 +274,7 @@ export const TABLE_DETAILS = [
       { name: "DeviceName",    note: "Source machine name when resolved" },
     ],
     categories: ["identity"],
+    schemaColumns: ["Timestamp", "ActionType", "Application", "QueryType", "QueryTarget", "Query", "Protocol", "AccountName", "AccountDomain", "AccountUpn", "AccountSid", "AccountObjectId", "AccountDisplayName", "DeviceName", "IPAddress", "Port", "DestinationDeviceName", "DestinationIPAddress", "DestinationPort", "TargetDeviceName", "TargetAccountUpn", "TargetAccountDisplayName", "Location", "ReportId", "AdditionalFields"],
   },
 
   {
@@ -284,6 +298,7 @@ export const TABLE_DETAILS = [
       { name: "DeviceName",               note: "Device that signed in — correlate with DeviceInfo for endpoint context" },
     ],
     categories: ["identity"],
+    schemaColumns: ["Timestamp", "Application", "ApplicationId", "LogonType", "ErrorCode", "CorrelationId", "SessionId", "AccountDisplayName", "AccountObjectId", "AccountUpn", "IsConfidentialClient", "IsExternalUser", "IsGuestUser", "AlternateSignInName", "LastPasswordChangeTimestamp", "ResourceDisplayName", "ResourceId", "ResourceTenantId", "DeviceName", "EntraIdDeviceId", "OSPlatform", "DeviceTrustType", "IsManaged", "IsCompliant", "AuthenticationProcessingDetails", "AuthenticationRequirement", "TokenIssuerType", "RiskLevelAggregated", "RiskDetails", "RiskState", "UserAgent", "ClientAppUsed", "Browser", "ConditionalAccessPolicies", "ConditionalAccessStatus", "IPAddress", "Country", "State", "City", "Latitude", "Longitude", "NetworkLocationDetails", "RequestId", "ReportId", "EndpointCall"],
   },
 
   {
@@ -306,6 +321,7 @@ export const TABLE_DETAILS = [
       { name: "AccountObjectId",            note: "Entra ID Object ID — join to CloudAppEvents, IdentityInfo" },
     ],
     categories: ["identity", "azure"],
+    schemaColumns: ["Timestamp", "Application", "ApplicationId", "LogonType", "ErrorCode", "CorrelationId", "SessionId", "AccountDisplayName", "AccountObjectId", "AccountUpn", "IsConfidentialClient", "IsExternalUser", "IsGuestUser", "AlternateSignInName", "LastPasswordChangeTimestamp", "ResourceDisplayName", "ResourceId", "ResourceTenantId", "DeviceName", "AadDeviceId", "OSPlatform", "DeviceTrustType", "IsManaged", "IsCompliant", "AuthenticationProcessingDetails", "AuthenticationRequirement", "TokenIssuerType", "RiskLevelAggregated", "RiskDetails", "RiskState", "UserAgent", "ClientAppUsed", "Browser", "ConditionalAccessPolicies", "ConditionalAccessStatus", "IPAddress", "Country", "State", "City", "Latitude", "Longitude", "NetworkLocationDetails", "RequestId", "ReportId"],
   },
 
   {
@@ -323,6 +339,7 @@ export const TABLE_DETAILS = [
       { name: "ApplicationId",      note: "The OAuth app or service principal making the call" },
     ],
     categories: ["identity", "azure"],
+    schemaColumns: ["IdentityProvider", "ApiVersion", "ApplicationId", "IPAddress", "ClientRequestId", "EntityType", "RequestUri", "AccountObjectId", "OperationId", "Location", "RequestDuration", "RequestId", "RequestMethod", "Timestamp", "ResponseStatusCode", "Scopes", "UniqueTokenIdentifier", "TargetWorkload", "ServicePrincipalId", "ResponseSize"],
   },
 
   {
@@ -338,6 +355,7 @@ export const TABLE_DETAILS = [
       { name: "AccountDomain",    note: "AD domain the account belongs to" },
     ],
     categories: ["identity"],
+    schemaColumns: ["AccountObjectId", "AccountUpn", "AccountName", "AccountSid", "AccountDomain", "OnPremSid", "AccountDisplayName", "TenantId"],
   },
 
   {
@@ -356,6 +374,7 @@ export const TABLE_DETAILS = [
       { name: "ConditionalAccessStatus", note: "Int: 0=success, 1=failure, 2=notApplied — CA coverage for app auth" },
     ],
     categories: ["identity", "azure"],
+    schemaColumns: ["Timestamp", "Application", "ApplicationId", "IsManagedIdentity", "ErrorCode", "CorrelationId", "ServicePrincipalName", "ServicePrincipalId", "ResourceDisplayName", "ResourceId", "ResourceTenantId", "IPAddress", "Country", "State", "City", "Latitude", "Longitude", "RequestId", "ReportId"],
   },
 
   // ── Email ─────────────────────────────────────────────────────────────────
@@ -377,6 +396,7 @@ export const TABLE_DETAILS = [
       { name: "AuthenticationDetails", note: "SPF / DKIM / DMARC results" },
     ],
     categories: ["email"],
+    schemaColumns: ["Timestamp", "NetworkMessageId", "InternetMessageId", "SenderMailFromAddress", "SenderFromAddress", "SenderDisplayName", "SenderObjectId", "SenderMailFromDomain", "SenderFromDomain", "SenderIPv4", "SenderIPv6", "RecipientEmailAddress", "RecipientObjectId", "Subject", "EmailClusterId", "EmailDirection", "DeliveryAction", "DeliveryLocation", "ThreatTypes", "ThreatNames", "DetectionMethods", "ConfidenceLevel", "BulkComplaintLevel", "EmailAction", "EmailActionPolicy", "EmailActionPolicyGuid", "AuthenticationDetails", "AttachmentCount", "UrlCount", "EmailLanguage", "Connectors", "OrgLevelAction", "OrgLevelPolicy", "UserLevelAction", "UserLevelPolicy", "ReportId", "AdditionalFields", "LatestDeliveryLocation", "LatestDeliveryAction", "DistributionList"],
   },
 
   {
@@ -389,11 +409,13 @@ export const TABLE_DETAILS = [
       { name: "SHA256",               note: "File hash — pivot to DeviceFileEvents, DeviceProcessEvents, threat intel" },
       { name: "FileName",             note: "Original attachment filename" },
       { name: "FileType",             note: "Extension or MIME type" },
+      { name: "ThreatTypes",          note: "Threat verdict — Malware / Phish / Spam" },
       { name: "ThreatNames",          note: "Malware family names from MDO static/dynamic analysis" },
-      { name: "MalwareFilterVerdict", note: "Clean / Malware / Phish — final verdict" },
+      { name: "DetectionMethods",     note: "How the threat was detected — ATP detonation, AV engine, file reputation, ZAP" },
       { name: "RecipientEmailAddress", note: "Who received this attachment" },
     ],
     categories: ["email", "files"],
+    schemaColumns: ["Timestamp", "NetworkMessageId", "SenderFromAddress", "SenderDisplayName", "SenderObjectId", "RecipientEmailAddress", "RecipientObjectId", "FileName", "FileType", "SHA256", "FileSize", "ThreatTypes", "ThreatNames", "DetectionMethods", "ReportId"],
   },
 
   {
@@ -408,6 +430,7 @@ export const TABLE_DETAILS = [
       { name: "UrlLocation",      note: "Body / Attachment / Header — where in the message it appeared" },
     ],
     categories: ["email", "network"],
+    schemaColumns: ["Timestamp", "NetworkMessageId", "Url", "UrlDomain", "UrlLocation", "ReportId"],
   },
 
   {
@@ -424,6 +447,7 @@ export const TABLE_DETAILS = [
       { name: "RecipientEmailAddress", note: "Affected recipient" },
     ],
     categories: ["email"],
+    schemaColumns: ["Timestamp", "NetworkMessageId", "InternetMessageId", "Action", "ActionType", "ActionTrigger", "ActionResult", "RecipientEmailAddress", "DeliveryLocation", "SourceLocation", "ThreatTypes", "DetectionMethods", "ReportId"],
   },
 
   {
@@ -441,6 +465,7 @@ export const TABLE_DETAILS = [
       { name: "UrlChain",         note: "JSON array of redirect hops — shows full redirect chain" },
     ],
     categories: ["email", "network"],
+    schemaColumns: ["Timestamp", "Url", "ActionType", "AccountUpn", "Workload", "NetworkMessageId", "ThreatTypes", "DetectionMethods", "IPAddress", "IsClickedThrough", "UrlChain", "ReportId", "AppName", "AppVersion", "SourceId", "TenantId", "Type", "SourceSystem", "TimeGenerated"],
   },
 
   {
@@ -457,6 +482,7 @@ export const TABLE_DETAILS = [
       { name: "ThreatTypes",   note: "Specific threat families associated with this campaign" },
     ],
     categories: ["email"],
+    schemaColumns: ["Timestamp", "CampaignName", "CampaignId", "CampaignType", "CampaignSubtype", "NetworkMessageId", "RecipientEmailAddress", "ReportId"],
   },
 
   // ── Teams ─────────────────────────────────────────────────────────────────
@@ -464,47 +490,51 @@ export const TABLE_DETAILS = [
   {
     id: "MessageEvents",
     msDesc: "Microsoft Teams messages at the time of delivery, including threat verdicts and delivery actions from Microsoft Defender for Office 365.",
-    plain: "The Teams equivalent of EmailEvents — every message sent in Teams channels and chats with its delivery outcome and threat verdict. Phishing lures, malware links, and social engineering messages distributed via Teams appear here. NetworkMessageId is the join key to MessageUrlInfo and MessagePostDeliveryEvents, mirroring the exact same pattern as the Email table family.",
+    plain: "The Teams equivalent of EmailEvents — every message sent in Teams channels and chats with its delivery outcome and threat verdict. Phishing lures, malware links, and social engineering messages distributed via Teams appear here. TeamsMessageId is the join key to MessageUrlInfo and MessagePostDeliveryEvents. Note: this table uses a Teams-specific schema — there is no NetworkMessageId, SenderFromAddress, or RecipientEmailAddress at the top level; recipients are in the RecipientDetails JSON array.",
     sources: ["Microsoft Defender for Office 365 (MDO) — Teams protection"],
     topColumns: [
-      { name: "NetworkMessageId",      note: "Unique message ID — joins to MessageUrlInfo and MessagePostDeliveryEvents" },
-      { name: "SenderFromAddress",     note: "Sender display address" },
-      { name: "RecipientEmailAddress", note: "Recipient UPN — pivot to IdentityInfo" },
-      { name: "DeliveryAction",        note: "Delivered / Blocked — whether Teams allowed the message" },
-      { name: "ThreatTypes",           note: "Phish / Malware / Spam — what MDO detected in the message" },
-      { name: "DeliveryLocation",      note: "Where the message landed — Teams inbox or blocked" },
-      { name: "InternetMessageId",     note: "RFC-standard message ID for cross-system correlation" },
+      { name: "TeamsMessageId",    note: "Unique Teams message ID — joins to MessageUrlInfo and MessagePostDeliveryEvents" },
+      { name: "SenderEmailAddress", note: "Email address of the sender" },
+      { name: "RecipientDetails",  note: "JSON array of recipients — each entry has RecipientSmtpAddress, RecipientDisplayName, RecipientObjectId" },
+      { name: "DeliveryAction",    note: "Delivered / Blocked — whether Teams allowed the message" },
+      { name: "ThreatTypes",       note: "Phish / Malware — what MDO detected in the message" },
+      { name: "DeliveryLocation",  note: "Where the message landed — Teams inbox or blocked" },
+      { name: "DetectionMethods",  note: "How the threat was detected" },
     ],
     categories: ["email"],
+    schemaColumns: ["Timestamp", "LastEditedTime", "TeamsMessageId", "SenderEmailAddress", "SenderDisplayName", "SenderObjectId", "SenderType", "RecipientDetails", "IsOwnedThread", "MessageId", "ParentMessageId", "GroupId", "GroupName", "ThreadId", "ThreadSubtype", "IsExternalThread", "MessageFormatType", "MessageFormatSubtype", "MessageVersion", "MessageSubject", "ThreatTypes", "DetectionMethods", "ConfidenceLevel", "DeliveryAction", "DeliveryLocation", "ReportId", "SafetyTip"],
   },
 
   {
     id: "MessagePostDeliveryEvents",
     msDesc: "Post-delivery security actions taken on Microsoft Teams messages, such as zero-hour auto purge (ZAP) and manual remediation.",
-    plain: "The Teams equivalent of EmailPostDeliveryEvents — security actions taken on Teams messages after initial delivery. When MDO retroactively identifies a Teams message as malicious and ZAPs it, the action lands here. Useful for confirming whether a suspicious Teams lure was successfully remediated, and for identifying victims who may have seen the message before it was pulled.",
+    plain: "The Teams equivalent of EmailPostDeliveryEvents — security actions taken on Teams messages after initial delivery. When MDO retroactively identifies a Teams message as malicious and ZAPs it, the action lands here. Useful for confirming whether a suspicious Teams lure was successfully remediated. Note: join key is TeamsMessageId, not NetworkMessageId; recipients are in the RecipientDetails JSON array.",
     sources: ["Microsoft Defender for Office 365 (MDO) — Teams protection"],
     topColumns: [
-      { name: "NetworkMessageId",      note: "Join to MessageEvents for the original delivery record" },
-      { name: "RecipientEmailAddress", note: "Who received the affected message" },
-      { name: "Action",                note: "ZAP / ManualRemediation / Replaced — what was done to the message" },
-      { name: "ActionType",            note: "Specific remediation sub-type" },
-      { name: "DeliveryLocation",      note: "Where the message was when the action was taken" },
+      { name: "TeamsMessageId",       note: "Join to MessageEvents for the original delivery record" },
+      { name: "RecipientDetails",     note: "JSON array of affected recipients — each entry has RecipientSmtpAddress and RecipientObjectId" },
+      { name: "Action",               note: "Blocked / Moved to quarantine — what was done to the message" },
+      { name: "ActionType",           note: "Manual remediation / Phish ZAP / Malware ZAP" },
+      { name: "LatestDeliveryLocation", note: "Last known location of the message after action" },
+      { name: "ActionResult",         note: "Result of the remediation action — was it successful?" },
     ],
     categories: ["email"],
+    schemaColumns: ["Timestamp", "TeamsMessageId", "Action", "ActionType", "ActionTrigger", "ActionResult", "SenderEmailAddress", "RecipientDetails", "ThreatTypes", "ConfidenceLevel", "DetectionMethods", "LatestDeliveryLocation", "ReportId", "IsExternalThread", "SafetyTip"],
   },
 
   {
     id: "MessageUrlInfo",
     msDesc: "URLs extracted from Microsoft Teams messages processed by Microsoft Defender for Office 365 Safe Links.",
-    plain: "The Teams equivalent of EmailUrlInfo — every URL found in a Teams message. Safe Links wraps and detonates these URLs on click. Cross-referencing with UrlClickEvents reveals whether a recipient actually clicked a malicious link delivered via Teams. The same attacker infrastructure often appears across both Email and Teams campaigns simultaneously.",
+    plain: "The Teams equivalent of EmailUrlInfo — every URL found in a Teams message. Safe Links wraps and detonates these URLs on click. Cross-referencing with UrlClickEvents reveals whether a recipient actually clicked a malicious link delivered via Teams. The same attacker infrastructure often appears across both Email and Teams campaigns simultaneously. Note: join key is TeamsMessageId, not NetworkMessageId.",
     sources: ["Microsoft Defender for Office 365 (MDO) — Safe Links for Teams"],
     topColumns: [
-      { name: "NetworkMessageId", note: "Join to MessageEvents for delivery context" },
-      { name: "Url",              note: "Full URL found in the Teams message" },
-      { name: "UrlDomain",        note: "Domain portion — pivot to UrlClickEvents, EmailUrlInfo for cross-channel matching" },
-      { name: "UrlScheme",        note: "http / https — non-https links are suspicious in modern comms" },
+      { name: "TeamsMessageId", note: "Join to MessageEvents for delivery context" },
+      { name: "Url",            note: "Full URL found in the Teams message" },
+      { name: "UrlDomain",      note: "Domain portion — pivot to UrlClickEvents, EmailUrlInfo for cross-channel matching" },
+      { name: "ThreatTypes",    note: "Threat verdict for the URL — Phish / Malware if detected" },
     ],
     categories: ["email", "network"],
+    schemaColumns: ["Timestamp", "TeamsMessageId", "Url", "UrlDomain", "ThreatTypes", "ReportId"],
   },
 
   // ── Cloud ─────────────────────────────────────────────────────────────────
@@ -520,11 +550,15 @@ export const TABLE_DETAILS = [
       { name: "Application",       note: "Which M365 service — Exchange, SharePoint, Teams, Azure, etc." },
       { name: "ActionType",        note: "What the user did — MailItemsAccessed, FileDownloaded, New-InboxRule..." },
       { name: "IPAddress",         note: "Source IP — compare to known user locations" },
+      { name: "IsAnonymousProxy",  note: "Boolean — true if the source IP is a known anonymous proxy (Tor, VPN, hosting). Key filter for compromised-account hunts." },
+      { name: "CountryCode",       note: "Two-letter country code for the source IP — flag logins from unexpected countries" },
+      { name: "IPTags",            note: "Dynamic array of customer-defined tags on the IP range — e.g. 'anonymizer', 'tor', 'VPN'" },
       { name: "UserAgent",         note: "Browser / client used — odd user agents signal scripted access" },
       { name: "ObjectName",        note: "The resource acted on — filename, mailbox, site URL" },
       { name: "RawEventData",      note: "JSON with full event detail — mine for additional context" },
     ],
     categories: ["office", "azure"],
+    schemaColumns: ["Timestamp", "ActionType", "Application", "ApplicationId", "AppInstanceId", "AccountObjectId", "AccountId", "AccountDisplayName", "IsAdminOperation", "DeviceType", "OSPlatform", "IPAddress", "IsAnonymousProxy", "CountryCode", "City", "Isp", "UserAgent", "ActivityType", "ActivityObjects", "ObjectName", "ObjectType", "ObjectId", "ReportId", "AccountType", "IsExternalUser", "IsImpersonated", "IPTags", "IPCategory", "UserAgentTags", "RawEventData", "AdditionalFields", "LastSeenForUser", "UncommonForUser", "AuditSource", "SessionData", "OAuthAppId"],
   },
 
   {
@@ -533,15 +567,17 @@ export const TABLE_DETAILS = [
     plain: "Azure control-plane activity — what happened to Azure resources themselves rather than what's running inside them. VM creation, deletion, extension writes, role assignment changes, and ARM operations all appear here. Important: this table has no AccountUpn or AccountId columns — the caller identity is embedded inside RawEventData as RawEventData['caller']. Use OperationName to filter specific operations; ActionType is only a generic category (Create/Read/Update/Delete).",
     sources: ["Microsoft Defender for Cloud (MDfC)", "Azure Monitor / Azure Activity Log", "Azure Resource Manager (ARM) audit"],
     topColumns: [
-      { name: "OperationName",  note: "Specific ARM operation name — e.g. 'Microsoft.Compute/virtualMachines/runCommand/action'; use this, not ActionType, to filter for specific ops" },
-      { name: "ActionType",     note: "Generic category only: Create / Read / Update / Delete / Other — not the specific operation name" },
-      { name: "ResourceId",     note: "Full ARM resource path of the affected resource" },
-      { name: "IPAddress",      note: "Source IP of the API call — may be attacker infrastructure" },
-      { name: "DataSource",     note: "Cloud platform: Azure, AWS, GCP, Kubernetes" },
-      { name: "RawEventData",   note: "Full JSON event record — account/caller info is inside here as RawEventData['caller']" },
+      { name: "OperationName",    note: "Specific ARM operation name — e.g. 'Microsoft.Compute/virtualMachines/runCommand/action'; use this, not ActionType, to filter for specific ops" },
+      { name: "ActionType",       note: "Generic category only: Create / Read / Update / Delete / Other — not the specific operation name" },
+      { name: "ResourceId",       note: "Full ARM resource path of the affected resource" },
+      { name: "IPAddress",        note: "Source IP of the API call — may be attacker infrastructure" },
+      { name: "IsAnonymousProxy", note: "Boolean — true if the source IP is a known anonymous proxy. Useful for filtering cloud API calls made via Tor or anonymizing VPNs." },
+      { name: "DataSource",       note: "Cloud platform: Azure, AWS, GCP, Kubernetes" },
+      { name: "RawEventData",     note: "Full JSON event record — account/caller info is inside here as RawEventData['caller']" },
       { name: "AdditionalFields", note: "JSON with supplemental event details" },
     ],
     categories: ["azure"],
+    schemaColumns: ["Timestamp", "ReportId", "DataSource", "ActionType", "OperationName", "ResourceId", "IPAddress", "IsAnonymousProxy", "CountryCode", "City", "Isp", "UserAgent", "RawEventData", "AdditionalFields"],
   },
 
   {
@@ -560,6 +596,7 @@ export const TABLE_DETAILS = [
       { name: "AzureResourceId",          note: "Full ARM resource ID of the AKS cluster (for Azure deployments)" },
     ],
     categories: ["processes", "azure"],
+    schemaColumns: ["Timestamp", "AzureResourceId", "AwsResourceName", "GcpFullResourceName", "ContainerImageName", "KubernetesNamespace", "KubernetesPodName", "KubernetesResource", "ContainerName", "ContainerId", "ActionType", "FileName", "FolderPath", "ProcessId", "ProcessName", "ParentProcessName", "ParentProcessId", "ProcessCommandLine", "ProcessCreationTime", "ProcessCurrentWorkingDirectory", "AccountName", "LogonId", "InitiatingProcessId", "ImageDigest", "AgentId", "Region", "HostName", "AdditionalFields"],
   },
 
   {
@@ -568,14 +605,17 @@ export const TABLE_DETAILS = [
     plain: "DNS telemetry from cloud-native workloads running in AKS (Azure), EKS (AWS), and GKE (GCP). DNS tunneling, C2 beaconing via DNS, and data exfiltration through high-volume DNS queries all appear here if they originate from containerised workloads. Complements DeviceNetworkEvents (which covers endpoint DNS) for organisations running cloud workloads. Preview table — availability varies by tenant.",
     sources: ["Microsoft Defender for Cloud — cloud container workload protection (AKS/EKS/GKE)", "Preview — may not be available in all tenants"],
     topColumns: [
-      { name: "DeviceId",                    note: "Container or pod ID — join to CloudProcessEvents for process context" },
-      { name: "DnsQueryName",                note: "The queried hostname — look for DGA patterns, long subdomains (tunnelling), suspicious TLDs" },
-      { name: "DnsQueryType",                note: "A / AAAA / MX / TXT / CNAME — TXT queries can carry tunnelled data" },
-      { name: "RemoteIPType",                note: "Public / Private — public resolvers contacted from inside a cluster are suspicious" },
-      { name: "InitiatingProcessFileName",   note: "Process that made the DNS request" },
-      { name: "InitiatingProcessAccountName",note: "Account context of the querying process" },
+      { name: "DnsQuery",           note: "The queried hostname — look for DGA patterns, long subdomains (tunnelling), suspicious TLDs" },
+      { name: "DnsQueryTypeName",   note: "A / AAAA / MX / TXT / CNAME — TXT queries can carry tunnelled data" },
+      { name: "ProcessName",        note: "Process inside the container that made the DNS request" },
+      { name: "KubernetesNamespace", note: "K8s namespace — identifies the workload area; replaces DeviceName" },
+      { name: "KubernetesPodName",  note: "Pod name — pivot to CloudProcessEvents to see what ran in this pod" },
+      { name: "ContainerName",      note: "Container name within the pod" },
+      { name: "ActionType",         note: "Type of DNS event" },
+      { name: "AzureResourceId",    note: "ARM resource ID of the AKS cluster for Azure deployments" },
     ],
     categories: ["network", "azure"],
+    schemaColumns: ["Timestamp", "ReportId", "ActionType", "AzureResourceId", "AwsResourceName", "GcpFullResourceName", "KubernetesResource", "KubernetesNamespace", "KubernetesPodName", "ContainerName", "ContainerId", "ImageName", "ProcessName", "ProcessId", "DnsEventType", "DnsEventSubType", "DnsQuery", "DnsQueryTypeName", "DnsResponseCodeName", "DnsNetworkDuration", "TransactionIdHex", "AdditionalFields"],
   },
 
   // ── Alerts ────────────────────────────────────────────────────────────────
@@ -595,6 +635,7 @@ export const TABLE_DETAILS = [
       { name: "DetectionSource",  note: "Specific detection engine within the product" },
     ],
     categories: ["email", "identity", "files", "processes", "network", "office", "azure"],
+    schemaColumns: ["Timestamp", "AlertId", "Title", "Category", "Severity", "ServiceSource", "DetectionSource", "AttackTechniques"],
   },
 
   {
@@ -613,6 +654,7 @@ export const TABLE_DETAILS = [
       { name: "AccountName",  note: "SAM account name for on-prem context" },
     ],
     categories: ["email", "identity", "files", "processes", "network", "office", "azure"],
+    schemaColumns: ["Timestamp", "AlertId", "Title", "Categories", "AttackTechniques", "ServiceSource", "DetectionSource", "EntityType", "EvidenceRole", "EvidenceDirection", "FileName", "FolderPath", "SHA1", "SHA256", "FileSize", "ThreatFamily", "RemoteIP", "RemoteUrl", "AccountName", "AccountDomain", "AccountSid", "AccountObjectId", "AccountUpn", "DeviceId", "DeviceName", "LocalIP", "NetworkMessageId", "EmailSubject", "Application", "ApplicationId", "OAuthApplicationId", "ProcessCommandLine", "RegistryKey", "RegistryValueName", "RegistryValueData", "AdditionalFields", "Severity", "CloudResource", "CloudPlatform", "ResourceType", "ResourceID", "SubscriptionId"],
   },
 
   // ── TVM ───────────────────────────────────────────────────────────────────
@@ -631,23 +673,25 @@ export const TABLE_DETAILS = [
       { name: "OSPlatform",      note: "Windows / macOS / Linux" },
     ],
     categories: ["files"],
+    schemaColumns: ["DeviceId", "DeviceName", "OSPlatform", "OSVersion", "OSArchitecture", "SoftwareVendor", "SoftwareName", "SoftwareVersion", "EndOfSupportStatus", "EndOfSupportDate", "ProductCodeCpe"],
   },
 
   {
     id: "DeviceTvmSoftwareVulnerabilities",
     msDesc: "Vulnerabilities found on devices, mapped to the affected software and CVE details.",
-    plain: "CVE-to-device mappings. For every installed vulnerable software version, TVM creates a record linking the device to the specific CVE, its CVSS score, and whether a patch exists. When a new zero-day drops or a CVE is being actively exploited, this is how you instantly find all exposed machines in your environment.",
+    plain: "CVE-to-device mappings. For every installed vulnerable software version, TVM creates a record linking the device to the specific CVE and its severity tier. Note: this table does not expose a raw CVSS score column — use VulnerabilitySeverityLevel for severity filtering. When a new zero-day drops or a CVE is being actively exploited, this is how you instantly find all exposed machines in your environment.",
     sources: ["Microsoft Defender for Endpoint (MDE) — Threat and Vulnerability Management (TVM) scanner", "NVD / MSRC CVE database"],
     topColumns: [
       { name: "CveId",           note: "CVE identifier — filter for specific vulnerabilities" },
-      { name: "CvssScore",       note: "CVSS 3.x base score — prioritise by severity" },
+      { name: "VulnerabilitySeverityLevel", note: "Critical / High / Medium / Low — severity rating from TVM (no raw CVSS score column exists)" },
       { name: "SoftwareName",    note: "Affected application" },
       { name: "SoftwareVersion", note: "Vulnerable version installed" },
       { name: "DeviceName",      note: "Affected machine" },
-      { name: "IsExploitAvailable", note: "True = public exploit exists — elevates urgency" },
-      { name: "VulnerabilitySeverityLevel", note: "Critical / High / Medium / Low" },
+      { name: "RecommendedSecurityUpdate", note: "Name of the patch that remediates this CVE" },
+      { name: "CveTags",         note: "Dynamic array — tags like ZeroDay or NoSecurityUpdate elevate urgency" },
     ],
     categories: ["files"],
+    schemaColumns: ["DeviceId", "DeviceName", "OSPlatform", "OSVersion", "OSArchitecture", "SoftwareVendor", "SoftwareName", "SoftwareVersion", "CveId", "VulnerabilitySeverityLevel", "RecommendedSecurityUpdate", "RecommendedSecurityUpdateId", "CveTags"],
   },
 
   {
@@ -664,6 +708,7 @@ export const TABLE_DETAILS = [
       { name: "OSPlatform",        note: "Windows / macOS / Linux" },
     ],
     categories: ["processes", "identity"],
+    schemaColumns: ["DeviceId", "DeviceName", "OSPlatform", "Timestamp", "ConfigurationId", "ConfigurationCategory", "ConfigurationSubcategory", "ConfigurationImpact", "IsCompliant", "IsApplicable", "Context", "IsExpectedUserImpact"],
   },
 
   {
@@ -675,12 +720,13 @@ export const TABLE_DETAILS = [
       { name: "ExtensionId",          note: "Browser extension store ID — pivot to threat intel for known malicious IDs" },
       { name: "ExtensionName",        note: "Display name of the extension" },
       { name: "BrowserName",          note: "Chrome / Edge / Firefox — scope to managed browser" },
-      { name: "IsActivated",          note: "True = extension is currently active in the browser" },
-      { name: "ExtensionDescription", note: "Self-reported description — fabricated descriptions are a red flag" },
-      { name: "DeviceName",           note: "Machine with the extension installed" },
-      { name: "DeviceId",             note: "Join to DeviceInfo for machine context" },
+      { name: "IsActivated",          note: "Whether the extension is currently on or off" },
+      { name: "ExtensionRisk",        note: "Risk level based on permissions requested — high-risk extensions with broad site access" },
+      { name: "ExtensionDescription", note: "Self-reported description — suspicious descriptions are a red flag" },
+      { name: "DeviceId",             note: "Join to DeviceInfo for machine hostname and OS (table does not include DeviceName)" },
     ],
     categories: ["processes"],
+    schemaColumns: ["DeviceId", "BrowserName", "ExtensionId", "ExtensionName", "ExtensionDescription", "ExtensionVersion", "ExtensionRisk", "ExtensionVendor", "IsActivated", "InstallationTime"],
   },
 
   {
@@ -689,15 +735,17 @@ export const TABLE_DETAILS = [
     plain: "The certificate store inventory for all endpoints. Certificates matter in IR for two reasons: malicious installers often install rogue root CAs to silently intercept TLS (SSL inspection by malware), and expired or misconfigured certificates create pivoting opportunities. Use this table to find untrusted root certificates silently added to endpoint trust stores, or to identify malware that signs itself with an expired or revoked certificate. Preview table — availability varies by tenant.",
     sources: ["Microsoft Defender for Endpoint (MDE) — Threat and Vulnerability Management (TVM) scanner", "Preview — may not be available in all tenants"],
     topColumns: [
-      { name: "Thumbprint",               note: "SHA-1 thumbprint — primary identifier, join to DeviceFileCertificateInfo" },
-      { name: "Subject",                  note: "Certificate subject — look for generic or suspicious subject names in root CAs" },
-      { name: "Issuer",                   note: "Who signed the cert — self-signed or unknown issuer = high suspicion" },
-      { name: "NotAfter",                 note: "Expiry date — long-lived certs from unknown CAs are a red flag" },
-      { name: "IsRootCa",                 note: "True = installed as a trusted root CA — rogue roots intercept TLS" },
-      { name: "SignatureAlgorithm",       note: "SHA-256 vs. weaker SHA-1 — legacy algorithms indicate old malware" },
-      { name: "DeviceName",               note: "Machine where this certificate is installed" },
+      { name: "Thumbprint",         note: "SHA-1 thumbprint — primary identifier for this certificate" },
+      { name: "IssuedTo",           note: "JSON entity the cert belongs to — device, individual, or org; check SubjectType to determine if it is a CA" },
+      { name: "IssuedBy",           note: "JSON entity that signed the cert — self-signed = IssuedTo equals IssuedBy" },
+      { name: "SubjectType",        note: "Whether the holder is a CA or end entity — CA certs installed silently are high suspicion" },
+      { name: "ExpirationDate",     note: "When the certificate expires — long-lived certs from unknown issuers are a red flag" },
+      { name: "SignatureAlgorithm", note: "Hashing + encryption algorithm — legacy SHA-1 based algorithms indicate older malware" },
+      { name: "KeyUsage",           note: "Declared cryptographic use — mismatched usage is suspicious" },
+      { name: "DeviceId",           note: "Machine where this certificate is installed (table does not include DeviceName — join to DeviceInfo)" },
     ],
     categories: ["files"],
+    schemaColumns: ["DeviceId", "Thumbprint", "Path", "SerialNumber", "IssuedTo", "IssuedBy", "FriendlyName", "SignatureAlgorithm", "KeySize", "ExpirationDate", "IssueDate", "SubjectType", "KeyUsage", "ExtendedKeyUsage"],
   },
 
   {
@@ -714,6 +762,7 @@ export const TABLE_DETAILS = [
       { name: "DeviceId",         note: "Join to DeviceInfo for full hardware context" },
     ],
     categories: ["processes"],
+    schemaColumns: ["DeviceId", "DeviceName", "ComponentType", "Manufacturer", "ComponentName", "ComponentFamily", "ComponentVersion", "AdditionalFields"],
   },
 
   // ── Purview ───────────────────────────────────────────────────────────────
@@ -727,12 +776,13 @@ export const TABLE_DETAILS = [
       { name: "ActionType",          note: "FileUploadedToCloud / FileCopiedToRemovableMedia / FileShared / FilePrinted" },
       { name: "AccountUpn",          note: "User who triggered the policy violation" },
       { name: "DeviceName",          note: "Machine where the action occurred" },
-      { name: "FileName",            note: "Name of the sensitive file involved" },
-      { name: "SensitiveInfoTypeName", note: "Type of sensitive data detected — Credit Card, SSN, etc." },
-      { name: "PolicyName",          note: "Which DLP policy was triggered" },
-      { name: "DestinationLocation", note: "Where the data went — USB, web, printer, external email" },
+      { name: "ObjectName",          note: "Name of the sensitive file or object involved" },
+      { name: "SensitiveInfoTypeInfo", note: "Dynamic JSON array — types of sensitive data detected (Credit Card, SSN, etc.)" },
+      { name: "DlpPolicyMatchInfo",   note: "Which DLP policy was triggered" },
+      { name: "DeviceDestinationLocationType", note: "Where the data went: 0=Unknown, 1=Local, 2=Remote, 3=Removable, 4=Cloud, 5=File share" },
     ],
     categories: ["files", "office"],
+    schemaColumns: ["Timestamp", "AccountUpn", "AccountObjectId", "ActionType", "ActivityId", "ApplicationNames", "AadDeviceId", "CcPolicyMatchInfo", "CloudAppAlertId", "Department", "DeviceDestinationLocationType", "DeviceId", "DeviceName", "DeviceSourceLocationType", "DlpPolicyEnforcementMode", "DlpPolicyMatchInfo", "DlpPolicyRuleMatchInfo", "EmailAttachmentCount", "EmailAttachmentInfo", "EmailSubject", "ExternalUrlDomains", "FileRenameInfo", "InternetMessageId", "IrmActionCategory", "IrmPolicyMatchInfo", "IsHidden", "IsManagedDevice", "NetworkMessageId", "ObjectId", "ObjectName", "ObjectSize", "ObjectType", "Operation", "PhysicalAccessPointId", "PhysicalAccessPointName", "PhysicalAccessStatus", "PhysicalAssetTag", "PrinterName", "RecipientEmailAddress", "RemovableMediaManufacturer", "RemovableMediaModel", "RemovableMediaSerialNumber", "SensitiveInfoTypeInfo", "SensitivityLabelId", "SequenceCorrelationId", "SharepointSiteSensitivityLabelIds", "PreviousSensitivityLabelId", "SiteUrl", "SourceCodeInfo", "SourceRelativeUrl", "SourceUrlDomain", "TargetFilePath", "TargetUrlDomain", "TeamsChannelName", "TeamsChannelType", "TeamsTeamName", "UnallowedUrlDomains", "UrlDomainInfo", "UserAlternateEmails", "Workload", "IPAddress"],
   },
 
   // ── Behaviors / UEBA ─────────────────────────────────────────────────────
@@ -744,15 +794,16 @@ export const TABLE_DETAILS = [
     sources: ["Microsoft Defender UEBA engine — correlates MDI, MDCA, Entra ID Protection, MDE signals", "Preview — may not be available in all tenants"],
     topColumns: [
       { name: "BehaviorId",        note: "Unique behavior ID — join to BehaviorEntities for the affected accounts/devices" },
-      { name: "Category",          note: "Anomaly category — InitialAccess, Exfiltration, LateralMovement, etc." },
+      { name: "Categories",        note: "Anomaly category (MITRE ATT&CK aligned) — InitialAccess, Exfiltration, LateralMovement, etc." },
       { name: "Description",       note: "Human-readable explanation of why this fired — read this for context" },
-      { name: "Severity",          note: "High / Medium / Low — UEBA anomaly confidence level" },
       { name: "AccountUpn",        note: "Primary user associated with the anomaly" },
-      { name: "DeviceName",        note: "Primary device involved, if applicable" },
+      { name: "DeviceId",          note: "Device ID when a device is involved — join to DeviceInfo for hostname and OS" },
       { name: "ActionType",        note: "Specific anomaly type identifier" },
       { name: "DetectionSource",   note: "Which UEBA engine surfaced the behavior" },
+      { name: "AttackTechniques",  note: "MITRE ATT&CK technique IDs associated with this behavior" },
     ],
     categories: ["identity", "processes"],
+    schemaColumns: ["Timestamp", "BehaviorId", "Title", "Description", "Categories", "AttackTechniques", "ServiceSource", "DetectionSource", "DataSources", "DeviceId", "AccountUpn", "AccountObjectId", "StartTime", "EndTime", "AdditionalFields", "ActionType"],
   },
 
   {
@@ -768,10 +819,11 @@ export const TABLE_DETAILS = [
       { name: "AccountObjectId",  note: "Entra Object ID when EntityType = User" },
       { name: "DeviceId",         note: "Populated when EntityType = Device — join to DeviceInfo" },
       { name: "DeviceName",       note: "Device hostname when EntityType = Device" },
-      { name: "IPAddress",        note: "Populated when EntityType = Ip — pivot to network tables" },
+      { name: "RemoteIP",         note: "Populated when EntityType = Ip — the remote IP involved in the behavior; pivot to network tables" },
       { name: "SHA256",           note: "Populated when EntityType = File — pivot to DeviceFileEvents" },
     ],
     categories: ["identity", "network"],
+    schemaColumns: ["Timestamp", "BehaviorId", "Categories", "ServiceSource", "DetectionSource", "DataSources", "EntityType", "EntityRole", "DetailedEntityRole", "FileName", "FolderPath", "SHA1", "SHA256", "FileSize", "ThreatFamily", "RemoteIP", "RemoteUrl", "AccountName", "AccountDomain", "AccountSid", "AccountObjectId", "CloudPlatform", "CloudResourceType", "CloudResourceId", "CloudSubscriptionId", "AccountUpn", "DeviceId", "DeviceName", "LocalIP", "NetworkMessageId", "EmailSubject", "EmailClusterId", "Application", "ApplicationId", "OAuthApplicationId", "ProcessCommandLine", "RegistryKey", "RegistryValueName", "RegistryValueData", "AdditionalFields", "ActionType"],
   },
 
   // ── Security Exposure Management ──────────────────────────────────────────
@@ -790,6 +842,7 @@ export const TABLE_DETAILS = [
       { name: "NodeProperties", note: "JSON bag of all entity attributes — OS, exposure score, path count, etc." },
     ],
     categories: ["identity", "network"],
+    schemaColumns: ["NodeId", "NodeLabel", "NodeName", "Categories", "NodeProperties", "EntityIds"],
   },
 
   {
@@ -798,14 +851,17 @@ export const TABLE_DETAILS = [
     plain: "The edges of the attack surface graph — every relationship between nodes that an attacker could traverse. An edge from a user node to a device node might mean 'this user has local admin rights on this device'. An edge from a device to an Azure resource might mean 'this machine's managed identity can read Key Vault secrets'. Querying edges from a specific source node reveals the lateral movement paths available to a compromised account or device.",
     sources: ["Microsoft Security Exposure Management — attack path analysis"],
     topColumns: [
-      { name: "SourceNodeId",   note: "Starting entity — join to ExposureGraphNodes for source details" },
-      { name: "TargetNodeId",   note: "Reachable entity — join to ExposureGraphNodes for target details" },
-      { name: "EdgeLabel",      note: "Type of relationship — 'CanLogonTo', 'HasAdmin', 'CanReadSecrets', etc." },
-      { name: "SourceNodeName", note: "Display name of the source entity" },
-      { name: "TargetNodeName", note: "Display name of the target entity" },
-      { name: "Categories",     note: "Tags on the relationship — Critical Path, Overprivileged, etc." },
+      { name: "SourceNodeId",         note: "Starting entity — join to ExposureGraphNodes for source details" },
+      { name: "TargetNodeId",         note: "Reachable entity — join to ExposureGraphNodes for target details" },
+      { name: "EdgeLabel",            note: "Type of relationship — 'CanLogonTo', 'HasAdmin', 'CanReadSecrets', etc." },
+      { name: "SourceNodeName",       note: "Display name of the source entity" },
+      { name: "TargetNodeName",       note: "Display name of the target entity" },
+      { name: "SourceNodeCategories", note: "Categories on the source node — Internet-facing, Crown Jewel, etc." },
+      { name: "TargetNodeCategories", note: "Categories on the target node — flags high-value targets in an attack path" },
+      { name: "EdgeProperties",       note: "JSON bag of optional relationship details" },
     ],
     categories: ["network", "identity"],
+    schemaColumns: ["EdgeId", "EdgeLabel", "SourceNodeId", "SourceNodeName", "SourceNodeLabel", "SourceNodeCategories", "TargetNodeId", "TargetNodeName", "TargetNodeLabel", "TargetNodeCategories", "EdgeProperties"],
   },
 
   // ── Azure Sentinel / Log Analytics ────────────────────────────────────────
@@ -827,6 +883,7 @@ export const TABLE_DETAILS = [
       { name: "CorrelationId",            note: "Correlates related sign-in events for the same auth session" },
     ],
     categories: ["identity", "azure"],
+    schemaColumns: ["AADTenantId", "Agent", "AlternateSignInName", "AppDisplayName", "AppId", "AppliedConditionalAccessPolicies", "AppliedEventListeners", "AppOwnerTenantId", "AuthenticationAppDeviceDetails", "AuthenticationAppPolicyEvaluationDetails", "AuthenticationContextClassReferences", "AuthenticationDetails", "AuthenticationMethodsUsed", "AuthenticationProcessingDetails", "AuthenticationProtocol", "AuthenticationRequirement", "AuthenticationRequirementPolicies", "AuthenticatorAppLocation", "AutonomousSystemNumber", "Category", "ClientAppUsed", "ClientCredentialType", "ConditionalAccessAudiences", "ConditionalAccessPolicies", "ConditionalAccessStatus", "CorrelationId", "CreatedDateTime", "CrossTenantAccessType", "DeviceDetail", "DurationMs", "FederatedCredentialId", "FlaggedForReview", "GlobalSecureAccessIpAddress", "HomeTenantId", "HomeTenantName", "Id", "Identity", "IncomingTokenType", "IPAddress", "IPAddressFromResourceProvider", "IsInteractive", "IsRisky", "IsTenantRestricted", "IsThroughGlobalSecureAccess", "Level", "Location", "LocationDetails", "MfaDetail", "NetworkLocationDetails", "OperationName", "OperationVersion", "OriginalRequestId", "OriginalTransferMethod", "ProcessingTimeInMilliseconds", "Resource", "ResourceDisplayName", "ResourceGroup", "ResourceId", "ResourceIdentity", "ResourceOwnerTenantId", "ResourceProvider", "ResourceServicePrincipalId", "ResourceTenantId", "ResultDescription", "ResultSignature", "ResultType", "RiskDetail", "RiskEventTypes", "RiskEventTypes_V2", "RiskLevel", "RiskLevelAggregated", "RiskLevelDuringSignIn", "RiskState", "ServicePrincipalId", "ServicePrincipalName", "SessionId", "SessionLifetimePolicies", "SignInIdentifier", "SignInIdentifierType", "SourceAppClientId", "SourceSystem", "Status", "TimeGenerated", "TokenIssuerName", "TokenIssuerType", "TokenProtectionStatusDetails", "Type", "UniqueTokenIdentifier", "UserAgent", "UserDisplayName", "UserId", "UserPrincipalName", "UserType"],
   },
 
   {
@@ -845,6 +902,7 @@ export const TABLE_DETAILS = [
       { name: "TimeGenerated", note: "Timestamp in Log Analytics format — use TimeGenerated not Timestamp in KQL" },
     ],
     categories: ["office", "azure"],
+    schemaColumns: ["AADGroupId", "AADTarget", "Activity", "Actor", "ActorContextId", "ActorIpAddress", "AddOnGuid", "AddonName", "AddOnType", "AffectedItems", "AppAccessContext", "AppDistributionMode", "AppId", "Application", "ApplicationId", "AppPoolName", "ArtifactsShared", "Attendees", "AzureActiveDirectory_EventType", "AzureADAppId", "ChannelGuid", "ChannelName", "ChannelType", "ChatName", "ChatThreadId", "Client", "Client_IPAddress", "ClientAppId", "ClientInfoString", "ClientIP", "ClientMachineName", "ClientProcessName", "ClientVersion", "CommunicationType", "CrossMailboxOperations", "CustomEvent", "DataCenterSecurityEventType", "DestFolder", "DestinationFileExtension", "DestinationFileName", "DestinationRelativeUrl", "DestMailboxId", "DestMailboxOwnerMasterAccountSid", "DestMailboxOwnerSid", "DestMailboxOwnerUPN", "DeviceInformation", "EffectiveOrganization", "ElevationApprovedTime", "ElevationApprover", "ElevationDuration", "ElevationRequestId", "ElevationRole", "ElevationTime", "Event_Data", "EventSource", "ExtendedProperties", "ExternalAccess", "ExtraProperties", "Folder", "Folders", "GenericInfo", "InternalLogonType", "InterSystemsId", "IntraSystemId", "IsJoinedFromLobby", "IsManagedDevice", "Item", "ItemName", "ItemType", "JoinTime", "LeaveTime", "ListItemUniqueId", "LoginStatus", "Logon_Type", "LogonUserDisplayName", "LogonUserSid", "MachineDomainInfo", "MachineId", "MailboxGuid", "MailboxOwnerMasterAccountSid", "MailboxOwnerSid", "MailboxOwnerUPN", "MeetingDetailId", "Members", "MessageId", "ModifiedObjectResolvedName", "ModifiedProperties", "Name", "NewValue", "OfficeId", "OfficeObjectId", "OfficeTenantId", "OfficeWorkload", "OldValue", "Operation", "OperationProperties", "OperationScope", "OrganizationId", "OrganizationName", "OriginatingServer", "Parameters", "RecordType", "ResultReasonType", "ResultStatus", "SendAsUserMailboxGuid", "SendAsUserSmtp", "SendonBehalfOfUserMailboxGuid", "SendOnBehalfOfUserSmtp", "SensitivityLabelId", "SharingType", "Site_", "Site_Url", "Source_Name", "SourceFileExtension", "SourceFileName", "SourceRecordId", "SourceRelativeUrl", "SRPolicyId", "SRPolicyName", "SRRuleMatchDetails", "Start_Time", "SupportTicketId", "TabType", "TargetContextId", "TargetUserId", "TargetUserOrGroupName", "TargetUserOrGroupType", "TeamGuid", "TeamName", "TenantId", "TimeGenerated", "Type", "UniqueSharingId", "UserAgent", "UserDomain", "UserId", "UserKey", "UserSharedWith", "UserType"],
   },
 
 ];

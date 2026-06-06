@@ -25,12 +25,20 @@ function isTableAzure(tableId) {
 
 // ── Table card ────────────────────────────────────────────────────────────────
 
-function TableCard({ detail }) {
+function TableCard({ detail, search }) {
   const [open, setOpen] = useState(false);
   const color = domainColor(detail.id);
   const domain = domainLabel(detail.id);
   const preview = isTablePreview(detail.id);
   const azure = isTableAzure(detail.id);
+
+  const schemaMatches = useMemo(() => {
+    if (!search || !detail.schemaColumns) return [];
+    const topNames = new Set(detail.topColumns.map(c => c.name.toLowerCase()));
+    return detail.schemaColumns.filter(col =>
+      col.toLowerCase().includes(search) && !topNames.has(col.toLowerCase())
+    );
+  }, [search, detail]);
 
   return (
     <div style={{
@@ -86,6 +94,26 @@ function TableCard({ detail }) {
           <div style={{ fontSize: "0.72rem", color: "var(--tx-4)", lineHeight: 1.6 }}>
             {detail.msDesc}
           </div>
+          {/* Schema match chips — shown when search hits a non-topColumn */}
+          {schemaMatches.length > 0 && (
+            <div style={{ marginTop: "0.4rem", display: "flex", flexWrap: "wrap", gap: "0.3rem", alignItems: "center" }}>
+              <span style={{ fontSize: "0.58rem", color: "var(--tx-5)", letterSpacing: "0.1em", textTransform: "uppercase", flexShrink: 0 }}>
+                Also in schema:
+              </span>
+              {schemaMatches.slice(0, 6).map((col, i) => (
+                <code key={i} style={{
+                  fontSize: "0.62rem", padding: "1px 5px", borderRadius: 2,
+                  background: "var(--bg-3)", border: "1px solid var(--bd-1)",
+                  color: "var(--tx-5)", letterSpacing: "0.02em", whiteSpace: "nowrap",
+                }}>
+                  {col}
+                </code>
+              ))}
+              {schemaMatches.length > 6 && (
+                <span style={{ fontSize: "0.6rem", color: "var(--tx-6)" }}>+{schemaMatches.length - 6} more</span>
+              )}
+            </div>
+          )}
         </div>
         {/* Expand toggle */}
         <div style={{
@@ -194,7 +222,8 @@ export default function TablesForMuggles() {
         t.id.toLowerCase().includes(q) ||
         t.msDesc.toLowerCase().includes(q) ||
         t.plain.toLowerCase().includes(q) ||
-        t.topColumns.some(c => c.name.toLowerCase().includes(q))
+        t.topColumns.some(c => c.name.toLowerCase().includes(q) || c.note.toLowerCase().includes(q)) ||
+        t.schemaColumns?.some(col => col.toLowerCase().includes(q))
       );
     }
 
@@ -369,7 +398,7 @@ export default function TablesForMuggles() {
             </div>
           ) : (
             filtered.map(detail => (
-              <TableCard key={detail.id} detail={detail} />
+              <TableCard key={detail.id} detail={detail} search={search.trim().toLowerCase()} />
             ))
           )}
         </div>

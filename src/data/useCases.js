@@ -241,7 +241,7 @@ CloudAppEvents
 | where Timestamp > ago(7d)
 | where NetworkMessageId == "<NetworkMessageId from EmailEvents>"
 | project Timestamp, NetworkMessageId, FileName, FileType,
-          SHA256, MalwareDetectionMethod`,
+          SHA256, ThreatTypes, DetectionMethods`,
       },
       {
         table: "EmailPostDeliveryEvents",
@@ -439,64 +439,67 @@ CloudAppEvents
       },
       {
         table: "GraphApiAuditEvents",
-        action: "ARM / Graph API calls enumerate the tenant: subscription IDs, VM names, resource groups — used to identify targets before executing commands",
-        kql: `GraphApiAuditEvents
+        action: "ARM / Graph API calls enumerate the tenant: subscription IDs, VM names, resource groups — used to identify targets before executing commands. GraphApiAuditEvents has no AccountUpn or ActionType column — filter by AccountObjectId; ARM endpoints appear in RequestUri.",
+        kql: `// GraphApiAuditEvents: no AccountUpn or ActionType — use AccountObjectId and RequestUri
+// TargetResources and AdditionalFields do not exist in this table
+GraphApiAuditEvents
 | where Timestamp > ago(7d)
-| where AccountId == "<AccountId from CloudAppEvents>"
-| where ActionType has_any (
-    "Microsoft.Compute/virtualMachines/read",
-    "Microsoft.Authorization/roleAssignments/read",
-    "Microsoft.Resources/subscriptions/resourceGroups/read",
-    "Get member objects")
-| project Timestamp, AccountUpn, ActionType, IPAddress,
-          TargetResources, AdditionalFields
+| where AccountObjectId == "<AccountObjectId from AlertEvidence or CloudAppEvents>"
+| where RequestUri has_any (
+    "/subscriptions","/virtualMachines",
+    "/roleAssignments","/resourceGroups",
+    "/members","/me/memberOf")
+| project Timestamp, IPAddress, RequestUri, RequestMethod,
+          TargetWorkload, ResponseStatusCode, ApplicationId, AccountObjectId
 | order by Timestamp asc`,
       },
       {
         table: "CloudAuditEvents",
-        action: "The Azure portal Run Command feature appears here as a resource action — this is the execution primitive. Also watch for Custom Script Extension or Desired State Config writes.",
-        kql: `CloudAuditEvents
+        action: "The Azure portal Run Command feature appears here as a resource action — this is the execution primitive. ActionType is generic only (Create/Read/Update/Delete); specific ARM operations are in OperationName. CloudAuditEvents has no top-level AccountId/AccountUpn — the caller is embedded in RawEventData.",
+        kql: `// CloudAuditEvents: no top-level AccountId or AccountUpn — caller is inside RawEventData
+// ActionType is generic (Create/Read/Update/Delete) — filter specific ARM ops via OperationName
+CloudAuditEvents
 | where Timestamp > ago(7d)
-| where AccountId == "<AccountId from CloudAppEvents>"
-| where ActionType has_any (
-    "Microsoft.Compute/virtualMachines/runCommand/action",
-    "Microsoft.Compute/virtualMachines/extensions/write",
-    "microsoft.compute/virtualmachines/runcommand",
-    "CustomScriptExtension")
-| extend CommandDetails = parse_json(AdditionalFields)
-| project Timestamp, AccountUpn, ActionType, ResourceId,
-          ResourceType, IPAddress,
-          CommandDetails, AdditionalFields`,
+| extend Caller = tostring(parse_json(RawEventData).caller)
+| where Caller =~ "<AccountUpn confirmed via AADSessionId>"
+| where OperationName has_any (
+    "runCommand",
+    "virtualMachines/runCommand",
+    "virtualMachines/extensions/write",
+    "virtualMachines/extensions")
+| project Timestamp, OperationName, ResourceId,
+          IPAddress, Caller, RawEventData, AdditionalFields
+| sort by Timestamp asc`,
       },
       {
-        table: "CloudProcessEvents",
-        action: "Processes spawned inside the VM by the Run Command agent (WindowsAzureGuestAgent / waagent). Look for unusual shells or recon commands launched by the Azure agent.",
-        kql: `CloudProcessEvents
+        table: "DeviceProcessEvents",
+        action: "Processes spawned by Azure Run Command on the VM — only visible if the VM is onboarded to MDE via Defender for Servers Plan 2. CloudProcessEvents is Kubernetes-only (AKS/EKS/GKE) and has no DeviceName or InitiatingProcessFileName; Azure VM processes appear in DeviceProcessEvents.",
+        kql: `// CloudProcessEvents is K8s-only — it has no DeviceName, InitiatingProcessFileName, or AccountName
+// Azure VM Run Command processes appear in DeviceProcessEvents only if the VM has Defender for Servers Plan 2
+DeviceProcessEvents
 | where Timestamp > ago(7d)
-// Pivot: CloudAuditEvents.ResourceName == CloudProcessEvents.DeviceName (VM name)
-| where DeviceName == "<ResourceName from CloudAuditEvents>"
-// Run Command spawns processes via the Azure Guest Agent
+| where DeviceName == "<VM_name_from_CloudAuditEvents>"
+// Parent process for Run Command extension — verify exact name in your environment
 | where InitiatingProcessFileName in~ (
     "WindowsAzureGuestAgent.exe",
-    "WaAppAgent.exe",
-    "waagent","CustomScriptHandler")
+    "WaAppAgent.exe")
 | where FileName in~ (
     "cmd.exe","powershell.exe","bash","sh",
-    "python.exe","python3","whoami.exe","net.exe")
-| project Timestamp, DeviceName, DeviceId, FileName,
+    "whoami.exe","net.exe","ipconfig.exe","hostname.exe")
+| project Timestamp, DeviceName, FileName,
           ProcessCommandLine, InitiatingProcessFileName,
           InitiatingProcessId, AccountName
 | order by Timestamp asc`,
       },],
     links: [
-      { from: "EmailEvents",       to: "UrlClickEvents",       col: "NetworkMessageId" },
-      { from: "UrlClickEvents",    to: "EntraIdSignInEvents",  col: "AccountUpn" },
-      { from: "EntraIdSignInEvents", to: "CloudAppEvents",     col: "SessionId → AADSessionId" },
-      { from: "CloudAppEvents",    to: "GraphApiAuditEvents",  col: "AccountId" },
-      { from: "CloudAppEvents",    to: "CloudAuditEvents",     col: "AccountUpn" },
-      { from: "CloudAuditEvents",  to: "CloudProcessEvents",   col: "ResourceName → DeviceName" },
-      { from: "AlertInfo",         to: "AlertEvidence",        col: "AlertId" },
-      { from: "AlertEvidence",     to: "EntraIdSignInEvents",  col: "AccountUpn" },
+      { from: "EmailEvents",       to: "UrlClickEvents",         col: "NetworkMessageId" },
+      { from: "UrlClickEvents",    to: "EntraIdSignInEvents",    col: "AccountUpn" },
+      { from: "EntraIdSignInEvents", to: "CloudAppEvents",       col: "SessionId → AADSessionId" },
+      { from: "CloudAppEvents",    to: "GraphApiAuditEvents",    col: "AccountObjectId" },
+      { from: "CloudAppEvents",    to: "CloudAuditEvents",       col: "AccountUpn" },
+      { from: "CloudAuditEvents",  to: "DeviceProcessEvents",    col: "ResourceName → DeviceName" },
+      { from: "AlertInfo",         to: "AlertEvidence",          col: "AlertId" },
+      { from: "AlertEvidence",     to: "EntraIdSignInEvents",    col: "AccountUpn" },
     ],
   },
   {
@@ -1001,17 +1004,18 @@ CloudAppEvents
       },
       {
         table: "GraphApiAuditEvents",
-        action: "Detect app registrations, consent grants, or mail read via Graph",
-        kql: `GraphApiAuditEvents
+        action: "Detect app registrations, consent grants, or mail read via Graph. GraphApiAuditEvents has no AccountUpn or ActionType column — filter by AccountObjectId and match on RequestUri for Graph API endpoints.",
+        kql: `// GraphApiAuditEvents: no AccountUpn or ActionType — use AccountObjectId and RequestUri
+// Azure AD audit operation names ("Add application.", etc.) do not exist as ActionType here
+GraphApiAuditEvents
 | where Timestamp > ago(7d)
-| where AccountId == "<AccountId from CloudAppEvents>"
-| where ActionType in (
-    "Add application.",
-    "Add OAuth2PermissionGrant.",
-    "Consent to application.",
-    "Add service principal.")
-| project Timestamp, AccountUpn, ActionType,
-          IPAddress, TargetResources, AdditionalFields`,
+| where AccountObjectId == "<AccountObjectId from CloudAppEvents>"
+| where RequestUri has_any (
+    "/applications","/oauth2PermissionGrants",
+    "/servicePrincipals","/approleAssignments",
+    "/me/messages","/me/mailFolders")
+| project Timestamp, IPAddress, RequestUri, RequestMethod,
+          TargetWorkload, ResponseStatusCode, ApplicationId, AccountObjectId`,
       },
       {
         table: "IdentityDirectoryEvents",
@@ -1049,15 +1053,19 @@ CloudAppEvents
       },
       {
         table: "CloudAuditEvents",
-        action: "Look for cloud resource creation or IAM changes (Defender for Cloud)",
-        kql: `CloudAuditEvents
+        action: "Look for cloud resource creation or IAM changes. ActionType is generic only (Create/Read/Update/Delete) — filter specific ARM operations via OperationName. CloudAuditEvents has no top-level AccountId or AccountUpn — the caller is embedded in RawEventData.",
+        kql: `// CloudAuditEvents: no top-level AccountId or AccountUpn — caller is inside RawEventData
+// ActionType is generic (Create/Read/Update/Delete) — filter specific ARM ops via OperationName
+CloudAuditEvents
 | where Timestamp > ago(7d)
-| where AccountId == "<AccountId from CloudAppEvents>"
-| where ActionType has_any (
-    "roleAssignment","policyAssignment",
-    "resourceCreated","storageAccountCreate")
-| project Timestamp, AccountUpn, ActionType,
-          ResourceId, ResourceType, AdditionalFields`,
+| extend Caller = tostring(parse_json(RawEventData).caller)
+| where Caller =~ "<AccountUpn from EntraIdSignInEvents>"
+| where OperationName has_any (
+    "roleAssignments/write",
+    "policyAssignments/write",
+    "storageAccounts/write")
+| project Timestamp, OperationName, ResourceId,
+          IPAddress, Caller, RawEventData, AdditionalFields`,
       },
       {
         table: "DataSecurityEvents",
@@ -1065,13 +1073,13 @@ CloudAppEvents
         kql: `DataSecurityEvents
 | where Timestamp > ago(7d)
 | where AccountUpn =~ "<AccountUpn from CloudAppEvents>"
-| where SensitivityLabel != "" or PolicyName != ""
-| project Timestamp, AccountUpn, ActionType, FileName,
-          SensitivityLabel, PolicyName, ActivityType`,
+| where SensitivityLabelId != "" or isnotempty(DlpPolicyMatchInfo)
+| project Timestamp, AccountUpn, ActionType, ObjectName,
+          SensitivityLabelId, DlpPolicyMatchInfo, Workload`,
       },],
     links: [
       { from: "EntraIdSignInEvents",     to: "CloudAppEvents",         col: "AccountObjectId" },
-      { from: "CloudAppEvents",          to: "GraphApiAuditEvents",    col: "AccountId" },
+      { from: "CloudAppEvents",          to: "GraphApiAuditEvents",    col: "AccountObjectId" },
       { from: "EntraIdSignInEvents",     to: "IdentityDirectoryEvents",col: "AccountUpn" },
       { from: "IdentityDirectoryEvents", to: "IdentityInfo",           col: "AccountUpn" },
       { from: "IdentityInfo",           to: "IdentityAccountInfo",    col: "AccountUpn" },
@@ -1651,16 +1659,23 @@ CloudAppEvents
           RemotePort, InitiatingProcessFileName`,
       },
       {
-        table: "DeviceEvents",
-        action: "Clipboard write from the browser process — this is the ClickFix fingerprint before any command executes",
-        kql: `DeviceEvents
+        table: "DeviceNetworkEvents",
+        action: "⚠ DETECTION GAP — Defender XDR cannot detect JavaScript clipboard writes (navigator.clipboard.writeText). No ActionType exists for browser clipboard writes in DeviceEvents. The only Defender-native signal is the browser's network connection to the ClickFix landing page immediately before Win+R execution.",
+        kql: `// Clipboard hijack is a detection gap in Defender XDR
+// navigator.clipboard.writeText() is a JavaScript call — it never surfaces as a DeviceEvents ActionType
+// If you need clipboard visibility, Sysmon Event ID 24 (ClipboardChange) captures it — requires Sysmon deployment
+// Closest Defender-native signal: browser hitting the ClickFix landing page
+DeviceNetworkEvents
 | where Timestamp > ago(7d)
-| where ActionType in ("SetClipboardText","ProcessMemoryAccess")
-    and InitiatingProcessFileName in~ (
-        "chrome.exe","msedge.exe","firefox.exe")
-| project Timestamp, DeviceName, ActionType,
-          InitiatingProcessFileName, InitiatingProcessId,
-          AdditionalFields`,
+| where InitiatingProcessFileName in~ (
+    "chrome.exe","msedge.exe","firefox.exe")
+  and RemoteIPType == "Public"
+| where RemoteUrl has_any (
+    "captcha","verify","human-check","browser-update",
+    "security-check","human-verify","document-view",
+    "confirm-access","not-robot")
+| project Timestamp, DeviceName, RemoteUrl, RemoteIP,
+          RemotePort, InitiatingProcessFileName`,
       },
       {
         table: "DeviceProcessEvents",
@@ -1670,7 +1685,7 @@ CloudAppEvents
 | where FileName in~ (
     "powershell.exe","cmd.exe","mshta.exe","certutil.exe")
 | where InitiatingProcessFileName in~ (
-    "explorer.exe","userinit.exe","WinLogonUI.exe")
+    "explorer.exe","userinit.exe")
 | where ProcessCommandLine has_any (
     "-EncodedCommand","-enc ",
     "IEX","Invoke-Expression","DownloadString",
