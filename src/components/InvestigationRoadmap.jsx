@@ -294,7 +294,7 @@ export default function InvestigationRoadmap() {
           >
             {isDark ? "☀ Light" : "◐ Dark"}
           </button>
-          <a href="/xdr-pivot-map/" style={{
+          <a href="/DefenderXDR-pivot-map/" style={{
             display: "inline-flex", alignItems: "center", gap: 5,
             fontSize: 11, color: "var(--tx-4)", textDecoration: "none",
             letterSpacing: "0.08em", marginBottom: 12, transition: "color 0.15s",

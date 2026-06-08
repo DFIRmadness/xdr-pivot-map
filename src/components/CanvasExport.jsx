@@ -325,7 +325,7 @@ export default function CanvasExport() {
         padding: "1.5rem 1.25rem",
         display: "flex", flexDirection: "column", gap: "1.25rem",
       }}>
-        <a href="/xdr-pivot-map/" style={{
+        <a href="/DefenderXDR-pivot-map/" style={{
           fontSize: "0.65rem", letterSpacing: "0.12em", textTransform: "uppercase",
           color: "var(--tx-5)", textDecoration: "none",
         }}>
@@ -393,7 +393,7 @@ export default function CanvasExport() {
               icon="🕸️"
               title="XDR Advanced Hunting Pivot Map"
               subtitle={`All ${TABLES.length} Defender XDR tables as nodes, grouped by domain. Every cross-table pivot relationship from the ${USE_CASES.length} use cases drawn as labeled edges.`}
-              filename="xdr-pivot-map.canvas"
+              filename="defender-xdr-pivot-map.canvas"
               accentColor="#00d4ff"
               generate={generatePivotMapCanvas}
             />

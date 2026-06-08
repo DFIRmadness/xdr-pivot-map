@@ -1,8 +1,8 @@
-# XDR Pivot Map
+# Microsoft Defender XDR Pivot Map
 
 Interactive threat hunting and incident response reference tools for Microsoft Defender XDR. Built for security analysts who live in Advanced Hunting.
 
-**Live site:** [dfirmadness.github.io/xdr-pivot-map](https://dfirmadness.github.io/xdr-pivot-map)
+**Live site:** [dfirmadness.github.io/DefenderXDR-pivot-map](https://dfirmadness.github.io/DefenderXDR-pivot-map)
 
 ---
 
@@ -54,12 +54,12 @@ Download the pivot map and investigation roadmaps as Obsidian Canvas (`.canvas`)
 
 ```bash
 npm install
-npm run dev      # http://localhost:4321/xdr-pivot-map
+npm run dev      # http://localhost:4321/DefenderXDR-pivot-map
 npm run build    # static output to /dist
 npm run preview  # preview production build
 ```
 
-Requires Node 20+.
+Requires Node 24+.
 
 ---
 

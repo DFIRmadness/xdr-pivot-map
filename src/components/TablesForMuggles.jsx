@@ -249,7 +249,7 @@ export default function TablesForMuggles() {
         display: "flex", flexDirection: "column", gap: "1.5rem",
         position: "sticky", top: 0, height: "100vh", overflowY: "auto",
       }}>
-        <a href="/xdr-pivot-map/" style={{
+        <a href="/DefenderXDR-pivot-map/" style={{
           fontSize: "0.65rem", letterSpacing: "0.12em", textTransform: "uppercase",
           color: "var(--tx-5)", textDecoration: "none",
         }}>

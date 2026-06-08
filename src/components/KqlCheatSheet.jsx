@@ -807,7 +807,7 @@ export default function KqlCheatSheet() {
         background: "var(--bg-1)",
       }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 14, marginBottom: 14, flexWrap: "wrap" }}>
-          <a href="/xdr-pivot-map/" style={{
+          <a href="/DefenderXDR-pivot-map/" style={{
             fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase",
             color: "var(--tx-5)", textDecoration: "none",
           }}>← Home</a>
