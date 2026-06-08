@@ -142,7 +142,7 @@ export const ROADMAPS = {
       {
         table: "DeviceNetworkEvents",
         label: "C2 Callback?",
-        picerl: "containment",
+        picerl: ["containment", "identification"],
         goal: "After execution, most malware calls home. Look for outbound connections from the process that ran the attachment — unusual remote IPs, high-entropy domain names, non-standard ports, or beaconing patterns (regular short intervals).",
         pivotColumns: ["RemoteIP", "RemoteUrl", "RemotePort", "InitiatingProcessFileName", "DeviceName"],
         kql: `DeviceNetworkEvents
@@ -247,7 +247,7 @@ export const ROADMAPS = {
       {
         table: "DeviceNetworkEvents",
         label: "Network Connections",
-        picerl: "containment",
+        picerl: ["containment", "identification"],
         goal: "Identify outbound connections to external IPs and domains. Beaconing shows up as many short connections at regular intervals to the same IP. Look for connections from unusual processes, non-standard ports, and newly registered or dynamic DNS domains.",
         pivotColumns: ["RemoteIP", "RemoteUrl", "RemotePort", "InitiatingProcessFileName"],
         kql: `DeviceNetworkEvents
@@ -265,7 +265,7 @@ export const ROADMAPS = {
       {
         table: "DeviceRegistryEvents",
         label: "Persistence",
-        picerl: "containment",
+        picerl: ["containment", "identification"],
         goal: "Attackers establish persistence via registry Run keys, services, scheduled tasks, and COM hijacking. Look for modifications to common persistence locations and values that reference unusual file paths or encoded commands.",
         pivotColumns: ["DeviceName", "DeviceId", "AccountName", "InitiatingProcessFileName"],
         kql: `DeviceRegistryEvents
@@ -284,7 +284,7 @@ export const ROADMAPS = {
       {
         table: "DeviceLogonEvents",
         label: "Lateral Movement",
-        picerl: "containment",
+        picerl: ["containment", "identification"],
         goal: "Did an attacker move from this device to others, or did someone suspicious log in? Look for network logons (type 3), pass-the-hash (type 9 with NTLM), and logons from unusual source IPs. Failed logons in bursts signal credential spraying.",
         pivotColumns: ["AccountName", "RemoteIP", "LogonType", "DeviceName"],
         kql: `DeviceLogonEvents
@@ -301,7 +301,7 @@ export const ROADMAPS = {
       {
         table: "IdentityLogonEvents",
         label: "Identity Impact",
-        picerl: "containment",
+        picerl: ["containment", "identification"],
         goal: "Cross-reference with identity layer telemetry. IdentityLogonEvents captures Kerberos and NTLM events at the domain controller level — more authoritative than device-level logs. Check if accounts used on this device authenticated from other locations simultaneously (impossible travel).",
         pivotColumns: ["AccountUpn", "IPAddress", "LogonType", "Protocol"],
         kql: `IdentityLogonEvents
@@ -404,7 +404,7 @@ export const ROADMAPS = {
       {
         table: "IdentityDirectoryEvents",
         label: "Directory Changes",
-        picerl: "containment",
+        picerl: ["containment", "identification"],
         goal: "Has the account been modified, or did the account modify others? Look for password resets, group membership changes (especially to Domain Admins), account creation, and attribute changes. Attackers often add themselves to privileged groups or create backdoor accounts.",
         pivotColumns: ["AccountUpn", "TargetAccountUpn", "TargetAccountDisplayName", "ActionType"],
         kql: `IdentityDirectoryEvents
@@ -422,7 +422,7 @@ export const ROADMAPS = {
       {
         table: "DeviceLogonEvents",
         label: "Endpoint Access",
-        picerl: "containment",
+        picerl: ["containment", "identification"],
         goal: "Which physical machines did this identity touch? Network logons (type 3) indicate lateral movement or remote admin. Interactive logons (type 2) are console sessions. RDP (type 10) is a common attacker path. Multiple devices in a short window is a red flag.",
         pivotColumns: ["AccountName", "DeviceName", "RemoteIP", "LogonType"],
         kql: `DeviceLogonEvents
@@ -438,7 +438,7 @@ export const ROADMAPS = {
       {
         table: "CloudAppEvents",
         label: "Cloud App Activity",
-        picerl: "containment",
+        picerl: ["containment", "identification"],
         goal: "What did this identity do in Microsoft 365 and connected SaaS apps? Look for large mail exports, SharePoint downloads, Teams message deletions, forwarding rule creation, and OAuth app consent grants. These are the most common post-compromise actions.",
         pivotColumns: ["AccountObjectId", "Application", "ActionType", "IPAddress"],
         kql: `CloudAppEvents
@@ -536,7 +536,7 @@ AlertEvidence
       {
         table: "DeviceNetworkEvents",
         label: "C2 & Exfiltration",
-        picerl: "containment",
+        picerl: ["containment", "identification"],
         goal: "Map every external connection made by the malware process. Identify C2 IPs and domains — look for beaconing (regular short intervals), large outbound data transfers, DNS tunneling (long hostnames), and connections to hosting providers known to allow abuse.",
         pivotColumns: ["RemoteIP", "RemoteUrl", "RemotePort", "InitiatingProcessFileName", "DeviceName"],
         kql: `DeviceNetworkEvents
@@ -554,7 +554,7 @@ AlertEvidence
       {
         table: "DeviceRegistryEvents",
         label: "Persistence Mechanisms",
-        picerl: "containment",
+        picerl: ["containment", "identification"],
         goal: "Did the malware establish persistence? Check common run keys, scheduled task registry entries, service creation, and COM object hijacking. RegistryValueData often contains the full command line or path to the persisted payload.",
         pivotColumns: ["DeviceName", "DeviceId", "AccountName", "InitiatingProcessFileName"],
         kql: `DeviceRegistryEvents
@@ -568,7 +568,7 @@ AlertEvidence
       {
         table: "EmailAttachmentInfo",
         label: "Delivered via Email?",
-        picerl: "containment",
+        picerl: ["containment", "identification"],
         goal: "Check if this hash was delivered as an email attachment. If yes, you have a delivery vector and can pivot to EmailEvents to find every recipient. This tells you the blast radius and helps identify the phishing campaign.",
         pivotColumns: ["SHA256", "NetworkMessageId", "FileName", "RecipientEmailAddress"],
         kql: `EmailAttachmentInfo
@@ -585,7 +585,7 @@ AlertEvidence
       {
         table: "DeviceLogonEvents",
         label: "Credential Use & Spread",
-        picerl: "containment",
+        picerl: ["containment", "identification"],
         goal: "Did the malware steal or use credentials? Look for logons originating from the infected device to other machines (lateral movement). NTLM logons with type 9 can indicate pass-the-hash. New accounts logging in from the device post-compromise are a critical signal.",
         pivotColumns: ["AccountName", "RemoteIP", "LogonType", "DeviceName"],
         kql: `DeviceLogonEvents
@@ -711,7 +711,7 @@ AlertInfo
       {
         table: "CloudAppEvents",
         label: "Cloud App Activity",
-        picerl: "containment",
+        picerl: ["containment", "identification"],
         goal: "Did this IP appear in any Microsoft 365 or cloud app activity? CloudAppEvents captures the source IP for every action. An attacker using this IP to access SharePoint, Exchange, or Teams will appear here — look for data access, forwarding rule creation, and file downloads.",
         pivotColumns: ["IPAddress", "Application", "ActionType", "AccountObjectId"],
         kql: `CloudAppEvents
@@ -914,7 +914,7 @@ CloudAppEvents
       {
         table: "OfficeActivity",
         label: "Office 365 Activity Under Stolen Session",
-        picerl: "containment",
+        picerl: ["containment", "identification"],
         goal: "Some AiTM attackers access Office 365 apps (Exchange, SharePoint, OneDrive, Teams) in parallel with or before pivoting to Azure. OfficeActivity in Sentinel covers the same workloads as CloudAppEvents in XDR but from the Log Analytics pipeline. Filter by AADSessionId (session-level, SID claim) or UniqueTokenId (per-token, UTI claim) — both extracted from the AppAccessContext JSON column, same as in CloudAppEvents. Per the Microsoft linkable identifier framework, Exchange, SharePoint, and Teams audit logs all carry AADSessionId and UniqueTokenId inside AppAccessContext. Cross-referencing OfficeActivity with CloudAppEvents for the same AADSessionId and UniqueTokenId confirms the full breadth of the session's activity across Microsoft services. Run in your Log Analytics workspace or Sentinel.",
         pivotColumns: ["AppAccessContext", "UserId", "Operation", "Workload", "ClientIP", "ObjectId"],
         kql: `// Run in Log Analytics / Sentinel — not XDR Advanced Hunting
@@ -944,7 +944,7 @@ OfficeActivity
       {
         table: "CloudAuditEvents",
         label: "Run Command Execution",
-        picerl: "containment",
+        picerl: ["containment", "identification"],
         goal: "The attacker selects a target VM and uses Azure's Run Command feature (or Custom Script Extension) to execute arbitrary code with SYSTEM-level privileges without needing RDP or network access. This is the crown jewel of Azure post-compromise: it requires only Azure RBAC permissions (Contributor or VM Contributor), leaves no interactive session, and can reach VMs behind private networking. In CloudAuditEvents the operation appears in OperationName (e.g. 'Microsoft.Compute/virtualMachines/runCommand/action') — note that ActionType is only a generic category (Create/Read/Update/Delete), not the specific op name. CloudAuditEvents has no top-level AccountUpn or AccountId column; the caller identity is embedded inside RawEventData as the 'caller' field. The AccountUpn you use here was confirmed by AADSessionId tracking in the previous two steps — it is the account whose stolen session authorised this ARM call. ResourceId reveals exactly which VM was targeted. The IPAddress on Azure control-plane events may still reflect Microsoft infrastructure; the stolen session, not the IP, is what authorised this operation.",
         pivotColumns: ["OperationName", "ResourceId", "IPAddress", "RawEventData"],
         kql: `CloudAuditEvents
@@ -967,7 +967,7 @@ OfficeActivity
       {
         table: "DeviceProcessEvents",
         label: "Download Cradle",
-        picerl: "containment",
+        picerl: ["containment", "identification"],
         goal: "When Run Command fires, the Azure Guest Agent spawns the attacker's script as a child process inside the VM. This is captured in DeviceProcessEvents — but only if the Azure VM is onboarded to Microsoft Defender for Endpoint via Defender for Servers (Plan 2). Without that sensor, there is no process telemetry from inside the VM. The ProcessCommandLine is the smoking gun — download cradles are typically PowerShell one-liners using Net.WebClient.DownloadString(), IEX(), certutil -urlcache, bitsadmin /transfer, or curl piped to execution. The URL in the command line points to the attacker's staging server or C2 framework (Cobalt Strike, Sliver, Havoc). InitiatingProcessFileName will be WindowsAzureGuestAgent.exe or WaAppAgent.exe — any child process of the Azure Guest Agent warrants immediate investigation. Extract the malware URL from ProcessCommandLine to pivot to threat intel and DeviceNetworkEvents. If DeviceProcessEvents returns nothing for this VM name, the VM is not MDE-onboarded — escalate to the Azure team and pull Azure Activity Logs directly.",
         pivotColumns: ["FileName", "ProcessCommandLine", "InitiatingProcessFileName", "DeviceName", "AccountName"],
         kql: `DeviceProcessEvents
@@ -999,7 +999,7 @@ OfficeActivity
       {
         table: "DeviceNetworkEvents",
         label: "C2 Callback",
-        picerl: "containment",
+        picerl: ["containment", "identification"],
         goal: "After the download cradle executes and the malware payload runs, it calls back to the attacker's C2 server. If the Azure VM is onboarded to Microsoft Defender for Endpoint (Defender for Servers Plan 2), those connections appear in DeviceNetworkEvents. Look for outbound connections from the process that ran the cradle — usually powershell.exe or the dropped malware binary — to external public IPs on unusual ports. Beaconing presents as many short connections at regular intervals to the same IP; use BeaconingInterval (derived from FirstSeen, LastSeen, and Connections) to detect it. RemoteUrl may contain the C2 domain — search this against threat intel. Even a single confirmed C2 connection proves successful code execution and turns this from a cloud incident into a full endpoint compromise.",
         pivotColumns: ["RemoteIP", "RemoteUrl", "RemotePort", "InitiatingProcessFileName", "DeviceName"],
         kql: `DeviceNetworkEvents
@@ -1154,7 +1154,7 @@ DeviceCodeSignIns
       {
         table: "CloudAppEvents",
         label: "Mailbox Pillage",
-        picerl: "containment",
+        picerl: ["containment", "identification"],
         goal: "Within minutes of obtaining the token, most device code attacks pivot straight to the mailbox. MailItemsAccessed is the primary indicator — the attacker silently reads emails, searches for password reset messages, invoices, MFA backup codes, or credentials in mail threads. Watch especially for inbox rule creation (New-InboxRule, Set-Mailbox) which gives the attacker a persistent, silent copy of all incoming email — even after the access token expires. AnonymousLinkCreated on SharePoint or OneDrive files is the exfiltration signal. Filter by AccountUpn from the UserPrincipalName captured in SigninLogs. Run this query sorted ascending to watch the attack unfold in chronological order.",
         pivotColumns: ["AccountObjectId", "AccountUpn", "Application", "ActionType", "IPAddress"],
         kql: `CloudAppEvents
@@ -1180,7 +1180,7 @@ DeviceCodeSignIns
       {
         table: "GraphApiAuditEvents",
         label: "API Enumeration",
-        picerl: "containment",
+        picerl: ["containment", "identification"],
         goal: "Sophisticated actors skip the GUI entirely and use the stolen token to call Microsoft Graph API directly via scripts or toolkits (GraphRunner, TokenTactician). GraphApiAuditEvents captures every API request made to Microsoft Graph — the exact endpoint called (RequestUri), HTTP method, source IP, target workload, and the AccountObjectId of the caller. High call volume from the attacker's IP in a short window indicates automated enumeration. Look for RequestUri values hitting /users, /groups, /me/messages, /me/drive, and /servicePrincipals. Note: this table has no AccountUpn or ActionType column — filter by AccountObjectId from AlertEvidence, or look up the UPN from SigninLogs in IdentityInfo: `IdentityInfo | where AccountUpn == '<UPN>' | project AccountObjectId`. TargetWorkload identifies which M365 service was targeted (e.g. Microsoft.Exchange, Microsoft.SharePoint).",
         pivotColumns: ["AccountObjectId", "IPAddress", "RequestUri", "TargetWorkload", "ApplicationId"],
         kql: `// All Graph API calls made by the compromised account
@@ -1207,7 +1207,7 @@ GraphApiAuditEvents
       {
         table: "CloudAuditEvents",
         label: "Azure Resource Escalation",
-        picerl: "containment",
+        picerl: ["containment", "identification"],
         goal: "If the token was requested with Azure Resource Manager (ARM) scope — or if the attacker uses a separate token for ARM after gaining persistence — they can interact directly with Azure subscriptions. Look for VM listing and enumeration (Microsoft.Compute reads), role assignment changes (Microsoft.Authorization writes), Key Vault secret reads (Microsoft.KeyVault/vaults/secrets), and storage blob access. Adding themselves as Contributor or Owner on a subscription is a persistence mechanism that survives password resets. If you see RunCommand or extension/write operations, the attacker has achieved code execution inside Azure VMs.",
         pivotColumns: ["OperationName", "ResourceId", "IPAddress", "RawEventData"],
         kql: `CloudAuditEvents
@@ -1338,7 +1338,7 @@ EntraIdSignInEvents
       {
         table: "CloudAppEvents",
         label: "Inbox Rule Creation",
-        picerl: "containment",
+        picerl: ["containment", "identification"],
         goal: "The attacker's first priority after obtaining the session token is persistence: create inbox rules that silently forward all incoming mail to an external address and hide security notification emails. Filter by AADSessionId (session-level SID) extracted from AppAccessContext — this matches the SessionId from the Login:Reprocess event. Also extract UniqueTokenId (per-token UTI) from AppAccessContext — this lets you identify the specific access token the attacker used for rule creation, useful if the attacker refreshed tokens mid-session. New-InboxRule with ForwardTo pointing to a free email provider is a confirmed compromise indicator. Set-Mailbox with ForwardingSmtpAddress survives password resets. Parse RawEventData as JSON to extract the rule conditions and actions.",
         pivotColumns: ["AppAccessContext", "AccountObjectId", "AccountUpn", "ActionType", "RawEventData"],
         kql: `// AppAccessContext carries two linkable identifiers:
@@ -1362,7 +1362,7 @@ CloudAppEvents
       {
         table: "CloudAppEvents",
         label: "Mailbox Reconnaissance",
-        picerl: "containment",
+        picerl: ["containment", "identification"],
         goal: "With the inbox rule suppressing alerts, the attacker reads the victim's email to understand payment workflows, find in-flight vendor invoices, and identify banking details to substitute. Filter by AADSessionId (session-level SID) — CloudAppEvents will show Microsoft datacenter IPs for these actions. Also extract UniqueTokenId (per-token UTI) from AppAccessContext to see if the attacker refreshed their access token mid-recon (a new UniqueTokenId for the same AADSessionId indicates token refresh). Two mv-expand calls are needed on MailItemsAccessed: first to flatten the Folders array, then to flatten FolderItems — producing one row per email. MailItemsAccessed does not log Subject directly; join to EmailEvents on InternetMessageId to recover it. SearchQueryInitiatedExchange reveals which terms the attacker searched — look for 'invoice', 'wire', 'payment', 'bank'. High MailItemsAccessed volume in a short window under the stolen session is the recon pattern.",
         pivotColumns: ["AppAccessContext", "AccountObjectId", "AccountUpn", "ActionType", "FolderPath", "InternetMessageId", "Subject"],
         kql: `// ── Part 1: Inbox rules — persistence mechanism ──────────────────────────────
@@ -1429,7 +1429,7 @@ CloudAppEvents
       {
         table: "OfficeActivity",
         label: "Mailbox Activity in Sentinel",
-        picerl: "containment",
+        picerl: ["containment", "identification"],
         goal: "OfficeActivity in Sentinel covers the same Exchange, SharePoint, and OneDrive operations as CloudAppEvents in XDR, but from the Log Analytics pipeline. Cross-referencing both tables against the same stolen SessionId gives you a complete picture. Per the Microsoft linkable identifier framework, Exchange, SharePoint, and Teams audit logs all carry AADSessionId (session-level SID) and UniqueTokenId (per-token UTI) inside the AppAccessContext JSON column. Use AADSessionId to scope the full stolen session; use UniqueTokenId to match a specific CloudAppEvents token event with its OfficeActivity counterpart. UserId in OfficeActivity is the UPN — maps to AccountUpn in XDR tables. Run in your Log Analytics workspace or Sentinel.",
         pivotColumns: ["AppAccessContext", "UserId", "Operation", "Workload", "ClientIP", "ObjectId"],
         kql: `// Run in Log Analytics / Sentinel — not XDR Advanced Hunting
@@ -1463,7 +1463,7 @@ OfficeActivity
       {
         table: "EmailEvents",
         label: "The BEC Fraud Email",
-        picerl: "containment",
+        picerl: ["containment", "identification"],
         goal: "Armed with context from the victim's mailbox, the attacker sends a fraudulent email from the compromised account (or a lookalike domain) to the finance team or a vendor. The email references real invoice details and requests a bank account change or urgent wire transfer. It may arrive in a reply-all thread from the real conversation. EmailDirection == 'Outbound' from the compromised account with finance-related subjects is the detection pivot. Confirm the send action also appears in CloudAppEvents under the stolen AADSessionId — EmailEvents records the email metadata, CloudAppEvents proves it was sent under the stolen session token. The RecipientEmailAddress may be an external vendor — check if they were targeted in subsequent invoice fraud.",
         pivotColumns: ["SenderFromAddress", "RecipientEmailAddress", "Subject", "NetworkMessageId", "EmailDirection"],
         kql: `// Primary: find the fraudulent email in EmailEvents
@@ -1619,7 +1619,7 @@ CloudAppEvents
       {
         table: "DeviceRegistryEvents",
         label: "Persistence Setup",
-        picerl: "containment",
+        picerl: ["containment", "identification"],
         goal: "Many modern stealers add persistence to enable repeated harvesting — each new browser session creates fresh authenticated cookies. The most common mechanism is a Run key pointing to the stealer binary or a dropper. Some families use COM hijacking (CLSID) or scheduled tasks. Run keys set by processes running from Temp or AppData paths are highly suspicious. RegistryValueData containing encoded strings or paths to Temp directories confirm malicious intent.",
         pivotColumns: ["RegistryKey", "RegistryValueData", "InitiatingProcessFileName", "DeviceName"],
         kql: `DeviceRegistryEvents
@@ -1638,7 +1638,7 @@ CloudAppEvents
       {
         table: "DeviceNetworkEvents",
         label: "Exfiltration via Telegram / Discord",
-        picerl: "containment",
+        picerl: ["containment", "identification"],
         goal: "Stealer logs are exfiltrated as structured JSON or ZIP archives via Telegram Bot API (api.telegram.org/bot<token>/sendDocument) or Discord webhooks (discord.com/api/webhooks/<id>/<token>). These channels are attractive because they use HTTPS over port 443 (blends with normal traffic) and the domain reputation is high (Telegram and Discord are legitimate services). Any process other than the official Telegram or Discord client calling these endpoints has stolen data. DeviceNetworkEvents does not expose byte counts — connection presence alone is the indicator.",
         pivotColumns: ["RemoteUrl", "RemoteIP", "InitiatingProcessFileName", "DeviceName"],
         kql: `DeviceNetworkEvents
@@ -1798,7 +1798,7 @@ AlertInfo
       {
         table: "DeviceFileEvents",
         label: "Payload Dropped to Disk",
-        picerl: "containment",
+        picerl: ["containment", "identification"],
         goal: "The PowerShell cradle downloads and writes the second-stage payload to disk before executing it. Look for executables, DLLs, or scripts written to Temp, AppData, or ProgramData by PowerShell, cmd, certutil, or bitsadmin. The SHA256 of the dropped file is the key pivot for threat intel lookup and environmental scoping. Common payloads delivered via ClickFix include AsyncRAT, DarkGate, Lumma Stealer, NetSupport Manager RAT, and XWorm. certutil -urlcache -split -f writes directly to the path specified — check the command line for the drop path.",
         pivotColumns: ["SHA256", "FileName", "FolderPath", "InitiatingProcessFileName", "DeviceName"],
         kql: `DeviceFileEvents
@@ -1815,7 +1815,7 @@ AlertInfo
       {
         table: "DeviceRegistryEvents",
         label: "Persistence Mechanism",
-        picerl: "containment",
+        picerl: ["containment", "identification"],
         goal: "The dropped payload establishes persistence to survive reboots. ClickFix-delivered payloads commonly use: HKCU Run keys (survives user logon), Scheduled Tasks (survives reboots), Winlogon UserInit modification (survives logoff), or COM object hijacking (CLSID). Run key values pointing to Temp or AppData paths are the most common. RegistryValueData containing encoded strings or paths with random-looking filenames confirms a malicious persistence entry. Also check DeviceEvents for ScheduledTaskCreated actions from the cradle's child process.",
         pivotColumns: ["RegistryKey", "RegistryValueData", "InitiatingProcessFileName", "DeviceName"],
         kql: `DeviceRegistryEvents

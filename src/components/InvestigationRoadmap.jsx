@@ -38,7 +38,9 @@ function StopCard({ step, index, total, roadmapColor, hoveredCol, setHoveredCol 
   const col = tableColor(step.table);
   const isPreview = tablePreview(step.table);
   const isAzure = tableAzure(step.table);
-  const picerlMeta = step.picerl ? PICERL_META[step.picerl] : null;
+  const picerlMetas = step.picerl
+    ? (Array.isArray(step.picerl) ? step.picerl : [step.picerl]).map(p => PICERL_META[p]).filter(Boolean)
+    : [];
   const isLast = index === total - 1;
 
   return (
@@ -109,17 +111,17 @@ function StopCard({ step, index, total, roadmapColor, hoveredCol, setHoveredCol 
                   AZURE
                 </span>
               )}
-              {picerlMeta && (
-                <span style={{
+              {picerlMetas.map((meta, i) => (
+                <span key={i} style={{
                   fontSize: 10, padding: "1px 5px", borderRadius: 2,
-                  background: picerlMeta.color + "18",
-                  border: `1px solid ${picerlMeta.color}55`,
-                  color: picerlMeta.color,
+                  background: meta.color + "18",
+                  border: `1px solid ${meta.color}55`,
+                  color: meta.color,
                   letterSpacing: "0.04em", whiteSpace: "nowrap",
                 }}>
-                  {picerlMeta.label}
+                  {meta.label}
                 </span>
-              )}
+              ))}
             </div>
             <div style={{ fontSize: 11, color: roadmapColor, fontWeight: 600, letterSpacing: "0.05em" }}>
               {step.label}

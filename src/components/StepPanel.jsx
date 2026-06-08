@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { DOMAINS } from "../data/domains.js";
 import { TABLES } from "../data/tables.js";
 import { COLUMN_INFO } from "../data/columns.js";
+import { TABLE_DETAILS } from "../data/tableDetails.js";
 
 function tableDeprecation(tableId) {
   const t = TABLES.find(t => t.id === tableId);
@@ -16,11 +17,13 @@ function tablePreview(tableId) {
 export default function StepPanel({ activeUC, activeStep, onStepClick }) {
   const [expandedKql, setExpandedKql] = useState(null);
   const [expandedCol, setExpandedCol] = useState(null); // "stepIndex:colKey"
+  const [expandedKeyCol, setExpandedKeyCol] = useState(null); // "stepIndex:colName"
   const [minimized, setMinimized] = useState(false);
 
   useEffect(() => {
     setExpandedKql(null);
     setExpandedCol(null);
+    setExpandedKeyCol(null);
     setMinimized(false);
   }, [activeUC]);
 
@@ -122,6 +125,8 @@ export default function StepPanel({ activeUC, activeStep, onStepClick }) {
 
           const outgoing = activeUC.links.filter(l => l.from === step.table);
           const incoming = activeUC.links.filter(l => l.to === step.table);
+          const tableDetail = TABLE_DETAILS.find(t => t.id === step.table);
+          const keyColumns = tableDetail?.topColumns ?? [];
 
           return (
             <div key={i} style={{ borderBottom: "1px solid var(--bd-3)" }}>
@@ -171,6 +176,48 @@ export default function StepPanel({ activeUC, activeStep, onStepClick }) {
                     )}
                   </div>
                   <div style={{ fontSize: 12, color: "var(--tx-4)", lineHeight: 1.6 }}>{step.action}</div>
+
+                  {/* High-value hunting columns */}
+                  {keyColumns.length > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      <div style={{ fontSize: 10, color: "var(--tx-6)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4 }}>
+                        Key Columns
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                        {keyColumns.map((kc, j) => {
+                          const keyColKey = `${i}:key:${kc.name}`;
+                          const isOpen = expandedKeyCol === keyColKey;
+                          return (
+                            <span key={j}>
+                              <span
+                                onClick={e => { e.stopPropagation(); setExpandedKeyCol(prev => prev === keyColKey ? null : keyColKey); }}
+                                style={{
+                                  fontSize: 11, padding: "3px 8px", borderRadius: 2,
+                                  background: "var(--bg-3)",
+                                  border: `1px solid ${isOpen ? col + "99" : col + "44"}`,
+                                  color: isOpen ? col : col + "88",
+                                  fontFamily: "inherit", cursor: "pointer",
+                                  transition: "all 0.15s", display: "inline-block",
+                                }}
+                              >
+                                {kc.name}
+                              </span>
+                              {isOpen && (
+                                <div style={{
+                                  marginTop: 4, padding: "8px 10px", borderRadius: 3,
+                                  background: "var(--bg-3)", border: `1px solid ${col}22`,
+                                  fontSize: 11, color: "var(--tx-3)", lineHeight: 1.6,
+                                }}>
+                                  <span style={{ color: col, fontWeight: 700, display: "block", marginBottom: 3 }}>{kc.name}</span>
+                                  {kc.note}
+                                </div>
+                              )}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Pivot column pills */}
                   {(incoming.length > 0 || outgoing.length > 0) && (
