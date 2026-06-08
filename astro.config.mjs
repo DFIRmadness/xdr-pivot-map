@@ -3,7 +3,7 @@ import react from "@astrojs/react";
 
 export default defineConfig({
   integrations: [react()],
-  site: "https://jamesmeow.github.io",
+  site: "https://dfirmadness.github.io",
   base: "/xdr-pivot-map",
   output: "static",
 });
