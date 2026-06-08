@@ -1,8 +1,12 @@
 # Microsoft Defender XDR Pivot Map
 
+Claude and I created a thing. I prefer the term, "Compose Coded".
+
 Interactive threat hunting and incident response reference tools for Microsoft Defender XDR. Built for security analysts who live in Advanced Hunting.
 
 **Live site:** [dfirmadness.github.io/DefenderXDR-pivot-map](https://dfirmadness.github.io/DefenderXDR-pivot-map)
+
+> **Disclaimer:** This project is not a Microsoft product and is not endorsed by, affiliated with, or supported by Microsoft in any way. Microsoft, Microsoft Defender, and Microsoft Defender XDR are trademarks of Microsoft Corporation. All schema and documentation references are sourced from publicly available Microsoft Learn documentation.
 
 ---
 
