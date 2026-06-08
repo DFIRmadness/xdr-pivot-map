@@ -387,7 +387,7 @@ export default function InvestigationRoadmap() {
             Select an investigation type from the left panel.<br/><br/>
             Follow the ordered stops to trace the full table chain — each stop shows what to look for, which columns to pivot on, and a ready-to-run KQL query.<br/><br/>
             <span style={{ fontSize: 13, color: "var(--tx-2)", lineHeight: 1.8, display: "block", borderTop: "1px solid var(--bd-1)", paddingTop: 14, marginTop: 4 }}>
-              <span style={{ display: "inline-block", transform: "scale(1.8)", transformOrigin: "center", marginRight: 10 }}>⚠</span> The investigation roadmaps are AI-driven rough sketches of how an investigation might look — meant to drive ideas, not prescribe exact steps. Treat them as a starting point, not a definitive playbook.
+              <span style={{ display: "inline-block", transform: "scale(2.8)", transformOrigin: "center", marginRight: 16 }}>⚠</span> The investigation roadmaps are AI-driven rough sketches of how an investigation might look — meant to drive ideas, not prescribe exact steps. Treat them as a starting point, not a definitive playbook.
             </span>
           </div>
         ) : (
