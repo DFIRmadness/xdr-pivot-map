@@ -229,7 +229,10 @@ export default function MitreCrosswalk() {
               How to use
             </div>
             Select a tactic from the left panel.<br/><br/>
-            Each technique shows the relevant Defender XDR tables, key columns, and ready-to-run KQL hunting queries.
+            Each technique shows the relevant Defender XDR tables, key columns, and ready-to-run KQL hunting queries.<br/><br/>
+            <span style={{ fontSize: 11, color: "var(--tx-5)", lineHeight: 1.7, display: "block" }}>
+              The technique mappings and KQL queries are AI-driven and meant to drive ideas — they may not be 100% accurate for every environment. Treat them as a starting point, not a definitive reference.
+            </span>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", height: "100%", zIndex: 1, position: "relative" }}>
