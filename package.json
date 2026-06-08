@@ -27,5 +27,9 @@
   },
   "overrides": {
     "vite": "^7"
+  },
+  "engines": {
+    "node": ">=24",
+    "npm": ">=11"
   }
 }
