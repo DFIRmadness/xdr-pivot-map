@@ -377,15 +377,18 @@ export default function InvestigationRoadmap() {
         {!activeType ? (
           <div style={{
             position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
-            background: "var(--bg-float)", border: "1px solid var(--bd-1)", borderRadius: 4,
-            padding: "20px 24px", maxWidth: 320, fontSize: 13, color: "var(--tx-3)", lineHeight: 1.7,
+            background: "var(--bg-float)", border: "1px solid #00d4ff55", borderRadius: 4,
+            padding: "28px 32px", maxWidth: 440, fontSize: 14, color: "var(--tx-1)", lineHeight: 1.8,
             zIndex: 1, textAlign: "center",
           }}>
-            <div style={{ color: "#00d4ff", marginBottom: 10, fontSize: 11, letterSpacing: "0.15em", textTransform: "uppercase" }}>
+            <div style={{ color: "#00d4ff", marginBottom: 12, fontSize: 12, letterSpacing: "0.15em", textTransform: "uppercase", fontWeight: 700 }}>
               How to use
             </div>
             Select an investigation type from the left panel.<br/><br/>
-            Follow the ordered stops to trace the full table chain — each stop shows what to look for, which columns to pivot on, and a ready-to-run KQL query.
+            Follow the ordered stops to trace the full table chain — each stop shows what to look for, which columns to pivot on, and a ready-to-run KQL query.<br/><br/>
+            <span style={{ fontSize: 13, color: "var(--tx-2)", lineHeight: 1.8, display: "block", borderTop: "1px solid var(--bd-1)", paddingTop: 14, marginTop: 4 }}>
+              ⚠ The investigation roadmaps are AI-driven rough sketches of how an investigation might look — meant to drive ideas, not prescribe exact steps. Treat them as a starting point, not a definitive playbook.
+            </span>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", height: "100%", zIndex: 1, position: "relative" }}>

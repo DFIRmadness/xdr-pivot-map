@@ -221,17 +221,17 @@ export default function MitreCrosswalk() {
           // No selection hint
           <div style={{
             position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
-            background: "var(--bg-float)", border: "1px solid var(--bd-1)", borderRadius: 4,
-            padding: "20px 24px", maxWidth: 300, fontSize: 13, color: "var(--tx-3)", lineHeight: 1.7,
+            background: "var(--bg-float)", border: "1px solid #ff475755", borderRadius: 4,
+            padding: "28px 32px", maxWidth: 440, fontSize: 14, color: "var(--tx-1)", lineHeight: 1.8,
             zIndex: 1, textAlign: "center",
           }}>
-            <div style={{ color: "#ff4757", marginBottom: 10, fontSize: 11, letterSpacing: "0.15em", textTransform: "uppercase" }}>
+            <div style={{ color: "#ff4757", marginBottom: 12, fontSize: 12, letterSpacing: "0.15em", textTransform: "uppercase", fontWeight: 700 }}>
               How to use
             </div>
             Select a tactic from the left panel.<br/><br/>
             Each technique shows the relevant Defender XDR tables, key columns, and ready-to-run KQL hunting queries.<br/><br/>
-            <span style={{ fontSize: 11, color: "var(--tx-5)", lineHeight: 1.7, display: "block" }}>
-              The technique mappings and KQL queries are AI-driven and meant to drive ideas — they may not be 100% accurate for every environment. Treat them as a starting point, not a definitive reference.
+            <span style={{ fontSize: 13, color: "var(--tx-2)", lineHeight: 1.8, display: "block", borderTop: "1px solid var(--bd-1)", paddingTop: 14, marginTop: 4 }}>
+              ⚠ The technique mappings and KQL queries are AI-driven and meant to drive ideas — they may not be 100% accurate for every environment. Treat them as a starting point, not a definitive reference.
             </span>
           </div>
         ) : (
