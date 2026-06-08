@@ -231,7 +231,7 @@ export default function MitreCrosswalk() {
             Select a tactic from the left panel.<br/><br/>
             Each technique shows the relevant Defender XDR tables, key columns, and ready-to-run KQL hunting queries.<br/><br/>
             <span style={{ fontSize: 13, color: "var(--tx-2)", lineHeight: 1.8, display: "block", borderTop: "1px solid var(--bd-1)", paddingTop: 14, marginTop: 4 }}>
-              <span style={{ fontSize: 20 }}>⚠</span> The technique mappings and KQL queries are AI-driven and meant to drive ideas — they may not be 100% accurate for every environment. Treat them as a starting point, not a definitive reference.
+              <span style={{ display: "inline-block", transform: "scale(1.8)", transformOrigin: "center", marginRight: 10 }}>⚠</span> The technique mappings and KQL queries are AI-driven and meant to drive ideas — they may not be 100% accurate for every environment. Treat them as a starting point, not a definitive reference.
             </span>
           </div>
         ) : (
