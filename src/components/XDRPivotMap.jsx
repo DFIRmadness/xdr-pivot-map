@@ -167,7 +167,7 @@ export default function XDRPivotMap() {
             </div>
             The XDR Map is the main focus of this tool. Use the map to see where an analyst may pivot with an IOC from one table to the next.<br/><br/>
             <strong style={{ color: "var(--tx-3)" }}>Categories</strong> will highlight tables relevant to the category.<br/><br/>
-            <strong style={{ color: "var(--tx-3)" }}>Hunt Scenarios</strong> are rough sketches of how to pivot through the data. They should not be expected to be 100% accurate for every environment.
+            <strong style={{ color: "var(--tx-3)" }}>Hunt Scenarios</strong> are rough sketches of how to pivot through the data. They are Claude-driven example workflow suggestions and should not be expected to be 100% accurate for every environment.
           </div>
         )}
 
